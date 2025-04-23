@@ -1,151 +1,51 @@
 Caso,Algoritmo,Pistas,Parametros,Estado,Costo,Tiempo_s
 case1.txt,Greedy Deterministic,1,N/A,VALID,4520.00,0.0000
 case1.txt,Greedy Deterministic,2,N/A,VALID,6690.00,0.0000
-case1.txt,HC from Deterministic,1,N/A,VALID,3550.00,0.0030
-case1.txt,HC from Deterministic,2,N/A,VALID,3550.00,0.0101
+case1.txt,HC from Deterministic,1,N/A,VALID,3550.00,0.0035
+case1.txt,HC from Deterministic,2,N/A,VALID,3550.00,0.0125
 case1.txt,Greedy Stochastic,1,0,VALID,8560.00,0.0000
-case1.txt,Greedy Stochastic,2,0,VALID,8560.00,0.0000
+case1.txt,Greedy Stochastic,2,0,VALID,7050.00,0.0000
 case1.txt,Greedy Stochastic,1,1,VALID,7350.00,0.0000
-case1.txt,Greedy Stochastic,2,1,VALID,7350.00,0.0000
+case1.txt,Greedy Stochastic,2,1,VALID,7450.00,0.0000
 case1.txt,Greedy Stochastic,1,2,VALID,10350.00,0.0000
-case1.txt,Greedy Stochastic,2,2,VALID,10350.00,0.0000
+case1.txt,Greedy Stochastic,2,2,VALID,7300.00,0.0000
 case1.txt,Greedy Stochastic,1,3,VALID,8920.00,0.0000
-case1.txt,Greedy Stochastic,2,3,VALID,8920.00,0.0000
+case1.txt,Greedy Stochastic,2,3,VALID,6780.00,0.0000
 case1.txt,Greedy Stochastic,1,4,VALID,7550.00,0.0000
-case1.txt,Greedy Stochastic,2,4,VALID,7550.00,0.0000
+case1.txt,Greedy Stochastic,2,4,VALID,8470.00,0.0000
 case1.txt,Greedy Stochastic,1,5,VALID,8250.00,0.0000
-case1.txt,Greedy Stochastic,2,5,VALID,8250.00,0.0000
+case1.txt,Greedy Stochastic,2,5,VALID,8820.00,0.0000
 case1.txt,Greedy Stochastic,1,6,VALID,10180.00,0.0000
-case1.txt,Greedy Stochastic,2,6,VALID,10180.00,0.0000
+case1.txt,Greedy Stochastic,2,6,VALID,7720.00,0.0000
 case1.txt,Greedy Stochastic,1,7,VALID,9360.00,0.0000
-case1.txt,Greedy Stochastic,2,7,VALID,9360.00,0.0000
+case1.txt,Greedy Stochastic,2,7,VALID,6180.00,0.0000
 case1.txt,Greedy Stochastic,1,8,VALID,8450.00,0.0000
-case1.txt,Greedy Stochastic,2,8,VALID,8450.00,0.0000
+case1.txt,Greedy Stochastic,2,8,VALID,5990.00,0.0000
 case1.txt,Greedy Stochastic,1,9,VALID,10580.00,0.0000
-case1.txt,Greedy Stochastic,2,9,VALID,10580.00,0.0000
-case1.txt,GRASP Stochastic,1,10,VALID,3550.00,0.0650
-case1.txt,GRASP Stochastic,2,10,VALID,3550.00,0.2507
-case1.txt,GRASP Stochastic,1,25,VALID,3550.00,0.1804
-case1.txt,GRASP Stochastic,2,25,VALID,3550.00,0.6567
-case1.txt,GRASP Stochastic,1,50,VALID,3550.00,0.3816
-case1.txt,GRASP Stochastic,2,50,VALID,3550.00,1.3082
-case1.txt,SA from Det,1,T=10000,VALID,3550.00,0.2210
-case1.txt,SA from Det,2,T=10000,VALID,3550.00,0.6235
-case1.txt,SA from Best Stoch,1,T=10000,VALID,3550.00,0.2150
-case1.txt,SA from Best Stoch,2,T=10000,VALID,3550.00,0.6234
-case1.txt,SA from Det,1,T=5000,VALID,3550.00,0.1984
-case1.txt,SA from Det,2,T=5000,VALID,3550.00,0.5869
-case1.txt,SA from Best Stoch,1,T=5000,VALID,3550.00,0.1979
-case1.txt,SA from Best Stoch,2,T=5000,VALID,3550.00,0.5838
-case1.txt,SA from Det,1,T=1000,VALID,3550.00,0.1721
-case1.txt,SA from Det,2,T=1000,VALID,3550.00,0.4970
-case1.txt,SA from Best Stoch,1,T=1000,VALID,3550.00,0.1715
-case1.txt,SA from Best Stoch,2,T=1000,VALID,3550.00,0.5094
-case1.txt,SA from Det,1,T=500,VALID,3550.00,0.1548
-case1.txt,SA from Det,2,T=500,VALID,3550.00,0.4667
-case1.txt,SA from Best Stoch,1,T=500,VALID,3550.00,0.1566
-case1.txt,SA from Best Stoch,2,T=500,VALID,3550.00,0.4630
-case1.txt,SA from Det,1,T=100,VALID,3550.00,0.1284
-case1.txt,SA from Det,2,T=100,VALID,3550.00,0.3769
-case1.txt,SA from Best Stoch,1,T=100,VALID,3550.00,0.1261
+case1.txt,Greedy Stochastic,2,9,VALID,6780.00,0.0000
+case1.txt,GRASP Stochastic,1,10,VALID,3550.00,0.0709
+case1.txt,GRASP Stochastic,2,10,VALID,3550.00,0.1313
+case1.txt,GRASP Stochastic,1,25,VALID,3550.00,0.1847
+case1.txt,GRASP Stochastic,2,25,VALID,3550.00,0.3219
+case1.txt,GRASP Stochastic,1,50,VALID,3550.00,0.3700
+case1.txt,GRASP Stochastic,2,50,VALID,3550.00,0.6812
+case1.txt,SA from Det,1,T=10000,VALID,3550.00,0.2189
+case1.txt,SA from Det,2,T=10000,VALID,3550.00,0.6300
+case1.txt,SA from Best Stoch,1,T=10000,VALID,3550.00,0.2144
+case1.txt,SA from Best Stoch,2,T=10000,VALID,3550.00,0.6276
+case1.txt,SA from Det,1,T=5000,VALID,3550.00,0.2027
+case1.txt,SA from Det,2,T=5000,VALID,3550.00,0.5913
+case1.txt,SA from Best Stoch,1,T=5000,VALID,3550.00,0.2007
+case1.txt,SA from Best Stoch,2,T=5000,VALID,3550.00,0.5775
+case1.txt,SA from Det,1,T=1000,VALID,3550.00,0.1707
+case1.txt,SA from Det,2,T=1000,VALID,3550.00,0.5057
+case1.txt,SA from Best Stoch,1,T=1000,VALID,3550.00,0.1711
+case1.txt,SA from Best Stoch,2,T=1000,VALID,3550.00,0.5081
+case1.txt,SA from Det,1,T=500,VALID,3550.00,0.1626
+case1.txt,SA from Det,2,T=500,VALID,3550.00,0.4772
+case1.txt,SA from Best Stoch,1,T=500,VALID,3550.00,0.1578
+case1.txt,SA from Best Stoch,2,T=500,VALID,3550.00,0.4623
+case1.txt,SA from Det,1,T=100,VALID,3550.00,0.1268
+case1.txt,SA from Det,2,T=100,VALID,3550.00,0.3800
+case1.txt,SA from Best Stoch,1,T=100,VALID,3550.00,0.1292
 case1.txt,SA from Best Stoch,2,T=100,VALID,3550.00,0.3698
-case2.txt,Greedy Deterministic,1,N/A,VALID,6990.00,0.0010
-case2.txt,Greedy Deterministic,2,N/A,VALID,9550.00,0.0000
-case2.txt,HC from Deterministic,1,N/A,VALID,4240.00,0.0207
-case2.txt,HC from Deterministic,2,N/A,VALID,4240.00,0.0878
-case2.txt,Greedy Stochastic,1,0,VALID,9410.00,0.0000
-case2.txt,Greedy Stochastic,2,0,VALID,9410.00,0.0000
-case2.txt,Greedy Stochastic,1,1,VALID,8180.00,0.0000
-case2.txt,Greedy Stochastic,2,1,VALID,8180.00,0.0000
-case2.txt,Greedy Stochastic,1,2,VALID,11380.00,0.0000
-case2.txt,Greedy Stochastic,2,2,VALID,11380.00,0.0000
-case2.txt,Greedy Stochastic,1,3,VALID,9040.00,0.0000
-case2.txt,Greedy Stochastic,2,3,VALID,9040.00,0.0000
-case2.txt,Greedy Stochastic,1,4,VALID,8040.00,0.0000
-case2.txt,Greedy Stochastic,2,4,VALID,8040.00,0.0000
-case2.txt,Greedy Stochastic,1,5,VALID,10630.00,0.0000
-case2.txt,Greedy Stochastic,2,5,VALID,10630.00,0.0000
-case2.txt,Greedy Stochastic,1,6,VALID,9150.00,0.0000
-case2.txt,Greedy Stochastic,2,6,VALID,9150.00,0.0000
-case2.txt,Greedy Stochastic,1,7,VALID,11390.00,0.0000
-case2.txt,Greedy Stochastic,2,7,VALID,11390.00,0.0000
-case2.txt,Greedy Stochastic,1,8,VALID,9480.00,0.0000
-case2.txt,Greedy Stochastic,2,8,VALID,9480.00,0.0000
-case2.txt,Greedy Stochastic,1,9,VALID,11960.00,0.0000
-case2.txt,Greedy Stochastic,2,9,VALID,11960.00,0.0000
-case2.txt,GRASP Stochastic,1,10,VALID,4040.00,0.2658
-case2.txt,GRASP Stochastic,2,10,VALID,4040.00,1.0602
-case2.txt,GRASP Stochastic,1,25,VALID,4040.00,0.6764
-case2.txt,GRASP Stochastic,2,25,VALID,4040.00,2.8588
-case2.txt,GRASP Stochastic,1,50,VALID,4040.00,1.3777
-case2.txt,GRASP Stochastic,2,50,VALID,4040.00,5.6756
-case2.txt,SA from Det,1,T=10000,VALID,4040.00,0.2626
-case2.txt,SA from Det,2,T=10000,VALID,4270.00,0.9404
-case2.txt,SA from Best Stoch,1,T=10000,VALID,4040.00,0.2587
-case2.txt,SA from Best Stoch,2,T=10000,VALID,4040.00,0.9460
-case2.txt,SA from Det,1,T=5000,VALID,4040.00,0.2499
-case2.txt,SA from Det,2,T=5000,VALID,4040.00,0.8821
-case2.txt,SA from Best Stoch,1,T=5000,VALID,4430.00,0.2522
-case2.txt,SA from Best Stoch,2,T=5000,VALID,4040.00,0.8778
-case2.txt,SA from Det,1,T=1000,VALID,4040.00,0.2211
-case2.txt,SA from Det,2,T=1000,VALID,4240.00,0.7689
-case2.txt,SA from Best Stoch,1,T=1000,VALID,4040.00,0.2221
-case2.txt,SA from Best Stoch,2,T=1000,VALID,4240.00,0.7600
-case2.txt,SA from Det,1,T=500,VALID,4430.00,0.1999
-case2.txt,SA from Det,2,T=500,VALID,4040.00,0.7011
-case2.txt,SA from Best Stoch,1,T=500,VALID,4040.00,0.1918
-case2.txt,SA from Best Stoch,2,T=500,VALID,4040.00,0.7279
-case2.txt,SA from Det,1,T=100,VALID,4240.00,0.1600
-case2.txt,SA from Det,2,T=100,VALID,4040.00,0.5763
-case2.txt,SA from Best Stoch,1,T=100,VALID,4040.00,0.1659
-case2.txt,SA from Best Stoch,2,T=100,VALID,4240.00,0.5883
-case3.txt,Greedy Deterministic,1,N/A,VALID,1550.00,0.0005
-case3.txt,Greedy Deterministic,2,N/A,VALID,7639.00,0.0010
-case3.txt,HC from Deterministic,1,N/A,VALID,1550.00,0.0040
-case3.txt,HC from Deterministic,2,N/A,VALID,1550.00,0.0297
-case3.txt,Greedy Stochastic,1,0,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,0,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,1,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,1,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,2,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,2,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,3,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,3,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,4,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,4,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,5,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,5,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,6,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,6,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,7,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,7,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,8,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,8,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,1,9,INVALID,INF,0.0000
-case3.txt,Greedy Stochastic,2,9,INVALID,INF,0.0000
-case3.txt,GRASP Stochastic,1,10,INVALID,INF,0.0187
-case3.txt,GRASP Stochastic,2,10,INVALID,INF,0.0190
-case3.txt,GRASP Stochastic,1,25,INVALID,INF,0.0481
-case3.txt,GRASP Stochastic,2,25,INVALID,INF,0.0462
-case3.txt,GRASP Stochastic,1,50,INVALID,INF,0.0940
-case3.txt,GRASP Stochastic,2,50,INVALID,INF,0.0939
-case3.txt,SA from Det,1,T=10000,VALID,1550.00,4.2091
-case3.txt,SA from Det,2,T=10000,VALID,1550.00,25.2593
-case3.txt,SA from Best Stoch,1,T=10000,INVALID,INF,0.0000
-case3.txt,SA from Best Stoch,2,T=10000,INVALID,INF,0.0000
-case3.txt,SA from Det,1,T=5000,VALID,1550.00,3.8893
-case3.txt,SA from Det,2,T=5000,VALID,1550.00,23.8000
-case3.txt,SA from Best Stoch,1,T=5000,INVALID,INF,0.0000
-case3.txt,SA from Best Stoch,2,T=5000,INVALID,INF,0.0000
-case3.txt,SA from Det,1,T=1000,VALID,1550.00,3.3603
-case3.txt,SA from Det,2,T=1000,VALID,1550.00,20.2137
-case3.txt,SA from Best Stoch,1,T=1000,INVALID,INF,0.0000
-case3.txt,SA from Best Stoch,2,T=1000,INVALID,INF,0.0000
-case3.txt,SA from Det,1,T=500,VALID,1550.00,3.0667
-case3.txt,SA from Det,2,T=500,VALID,1550.00,18.5686
-case3.txt,SA from Best Stoch,1,T=500,INVALID,INF,0.0000
-case3.txt,SA from Best Stoch,2,T=500,INVALID,INF,0.0000
-case3.txt,SA from Det,1,T=100,VALID,1550.00,2.4022
-case3.txt,SA from Det,2,T=100,VALID,1550.00,14.8316
-case3.txt,SA from Best Stoch,1,T=100,INVALID,INF,0.0000
-case3.txt,SA from Best Stoch,2,T=100,INVALID,INF,0.0000

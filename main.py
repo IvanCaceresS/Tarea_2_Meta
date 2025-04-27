@@ -6,29 +6,16 @@ import csv
 import json
 import random
 import copy
-
-# --- Módulos de Algoritmos (Asegúrate que estén en la carpeta 'scripts') ---
-try:
-    from scripts.read_case_data import read_case_data
-    from scripts.greedy_deterministic import solve_greedy_deterministic
-    from scripts.greedy_stochastic import solve_greedy_stochastic
-    # calculate_cost no se usa directamente aquí, pero sí en los otros módulos
-    from scripts.hill_climbing import hill_climbing_first_improvement
-    # solve_grasp no se usará directamente según la nueva lógica, solo HC y SA
-    # from scripts.grasp import solve_grasp
-    from scripts.simulated_annealing import solve_simulated_annealing
-except ImportError as e:
-    print(f"Error importando módulos: {e}")
-    print("Asegúrate que los archivos .py estén en una carpeta llamada 'scripts' al mismo nivel que este script,")
-    print("o ajusta las rutas de importación ('from scripts...') según tu estructura.")
-    import sys
-    sys.exit(1)
+from scripts.read_case_data import read_case_data
+from scripts.greedy_deterministic import solve_greedy_deterministic
+from scripts.greedy_stochastic import solve_greedy_stochastic
+from scripts.hill_climbing import hill_climbing_first_improvement
+from scripts.simulated_annealing import solve_simulated_annealing
+import sys
 
 # --- Constantes y Parámetros ---
 INFINITO_COSTO = float('inf')
-NUM_STOCHASTIC_RUNS = 10 # Ejecuciones para Greedy Estocástico
-# Los siguientes son solo para etiquetar las 3 series de ejecuciones de HC desde Estocástico según tu plan.
-# HC_MAX_ITER es la única configuración real de HC que se usa.
+NUM_STOCHASTIC_RUNS = 10
 HC_FROM_STOCH_LABELS = [10, 25, 50]
 RCL_SIZE = 3 # Para Greedy Estocástico
 HC_MAX_ITER = 500 # Iteraciones MÁXIMAS para CADA llamada a HC
@@ -38,10 +25,8 @@ SA_ALPHA = 0.95
 SA_ITER_PER_TEMP = 100 # Iteraciones por nivel de temperatura en SA
 SA_MAX_NEIGHBOR_ATTEMPTS = 50 # Intentos para generar vecino factible en SA
 
-# --- Funciones Auxiliares de Formato y Cálculo ---
 
 def format_cost(cost):
-    """Formatea el costo para mostrar 'INF' o un número con 2 decimales."""
     if cost == INFINITO_COSTO or cost is None:
         return "INF"
     try:
@@ -50,7 +35,6 @@ def format_cost(cost):
         return "ERR_FMT"
 
 def format_time(exec_time):
-    """Formatea el tiempo de ejecución a 4 decimales."""
     if exec_time is None:
         return "N/A"
     try:
@@ -59,13 +43,9 @@ def format_time(exec_time):
         return "ERR_FMT"
 
 def calculate_improvement(initial_cost, final_cost):
-    """Calcula el porcentaje de mejora. Retorna 'N/A' si no aplica o hay error."""
     if initial_cost in [INFINITO_COSTO, None] or final_cost in [INFINITO_COSTO, None]:
         return "N/A"
-    # Asegurarse que initial_cost no sea 0 antes de dividir
     if initial_cost == 0:
-         # Si el costo inicial es 0, cualquier costo final > 0 es empeoramiento infinito
-         # Si el costo final también es 0, la mejora es 0%
          return "-INF%" if final_cost > 0 else "0.00%"
     try:
         init_c = float(initial_cost)
@@ -76,10 +56,9 @@ def calculate_improvement(initial_cost, final_cost):
         return "ERR_CALC"
 
 def get_stats_from_list(results_list):
-    """Calcula estadísticas (costo y tiempo) para una lista de resultados."""
     stats = {
         'costs': [r.get('cost', INFINITO_COSTO) for r in results_list],
-        'times': [r.get('time', 0) for r in results_list], # Asume que time=0 si falta
+        'times': [r.get('time', 0) for r in results_list],
         'valid_runs': 0,
         'invalid_runs': 0,
         'min_cost': INFINITO_COSTO,
@@ -88,9 +67,8 @@ def get_stats_from_list(results_list):
         'stdev_cost': 0.0,
         'avg_time': 0.0,
         'total_time': 0.0,
-        'best_result': None # El dict completo del mejor resultado
+        'best_result': None
     }
-    # Filtrar costos None o INF
     valid_costs = [c for c in stats['costs'] if c is not None and c != INFINITO_COSTO]
     stats['valid_runs'] = len(valid_costs)
     stats['invalid_runs'] = len(results_list) - stats['valid_runs']
@@ -103,9 +81,7 @@ def get_stats_from_list(results_list):
             try:
                 stats['stdev_cost'] = statistics.stdev(valid_costs)
             except statistics.StatisticsError:
-                 stats['stdev_cost'] = 0.0 # Stdev de un solo elemento es 0
-
-        # Encontrar el mejor resultado (menor costo válido)
+                 stats['stdev_cost'] = 0.0
         best_res_index = -1
         current_min = INFINITO_COSTO
         for i, res in enumerate(results_list):
@@ -114,16 +90,12 @@ def get_stats_from_list(results_list):
                 if cost < current_min:
                     current_min = cost
                     best_res_index = i
-                # Desempate (opcional): si el costo es igual, preferir el primero encontrado
                 elif cost == current_min and best_res_index == -1:
                      best_res_index = i
 
         if best_res_index != -1:
-             # Crear una copia para evitar modificar el original al añadir stats
              stats['best_result'] = copy.deepcopy(results_list[best_res_index])
 
-
-    # Filtrar tiempos None y calcular promedio y total
     valid_times = [t for t in stats['times'] if t is not None]
     if valid_times:
          stats['avg_time'] = statistics.mean(valid_times) if valid_times else 0.0
@@ -132,10 +104,9 @@ def get_stats_from_list(results_list):
     return stats
 
 
-# --- Función de Resumen por Caso (Adaptada al plan exacto) ---
+# --- Función de Resumen por Caso ---
 def print_case_summary(case_name, results):
-    """Imprime un resumen detallado y estadístico para un caso específico según el plan exacto."""
-    print(f"\n######### Resumen Detallado: {case_name} (Plan Exacto v2) #########")
+    print(f"\n######### Resumen Detallado: {case_name}  #########")
 
     # --- 1. Greedy Determinista ---
     print("\n--- 1. Greedy Determinista ---")
@@ -264,7 +235,6 @@ def print_case_summary(case_name, results):
 
 
 if __name__ == "__main__":
-    # --- Rutas y Configuración ---
     case_dir = './Casos'
     results_dir = './results'
     csv_output_filename = os.path.join(results_dir, 'results_summary.csv')
@@ -282,11 +252,11 @@ if __name__ == "__main__":
         print(f"ERROR: El directorio de casos '{case_dir}' no existe.")
         case_files = []
         import sys
-        sys.exit(1) # Salir si no hay casos
+        sys.exit(1)
 
     print(f"Archivos de caso encontrados para procesar: {case_files}\n")
 
-    all_results_detailed = {} # Para guardar todos los detalles para el JSON final
+    all_results_detailed = {}
 
     # --- Preparación CSV ---
     csv_header = [
@@ -302,26 +272,19 @@ if __name__ == "__main__":
             # --- Bucle Principal por Caso ---
             for filename in case_files:
                 filepath = os.path.join(case_dir, filename)
-                print(f"\n=============== Procesando {filename} (Plan Exacto v2) ================")
-                case_results = {} # Diccionario para los resultados de ESTE caso
-
+                print(f"\n=============== Procesando {filename}  ================")
+                case_results = {} 
                 try:
                     D, planes, separations_matrix = read_case_data(filepath)
                     print(f"  Número de aviones: {D}")
                 except Exception as e:
                     print(f"  ERROR leyendo el archivo del caso {filename}: {e}")
-                    continue # Saltar al siguiente caso si no se puede leer
-
-                # --- Función auxiliar para escribir en CSV ---
+                    continue 
                 def write_result_to_csv(algo_name, num_runways, params, start_point, result_dict):
-                    # Extraer datos del diccionario de resultados
                     final_cost = result_dict.get('cost', INFINITO_COSTO)
                     exec_time = result_dict.get('time', 0)
-                    # Datos de la solución inicial usada
                     initial_cost = result_dict.get('initial_cost')
                     initial_seed = result_dict.get('initial_seed')
-
-                    # Determinar estado y formatear
                     status = "INVALID" if final_cost == INFINITO_COSTO or final_cost is None else "VALID"
                     final_cost_str = format_cost(final_cost)
                     improvement_str = calculate_improvement(initial_cost, final_cost)
@@ -347,7 +310,7 @@ if __name__ == "__main__":
                 for num_runways in [1, 2]:
                     print(f"\n  --- {num_runways} Pista(s) ---")
                     runway_tag = f"{num_runways}_runway" if num_runways == 1 else f"{num_runways}_runways"
-                    results_key_suffix = f"{num_runways}r" # Sufijo para claves de diccionario
+                    results_key_suffix = f"{num_runways}r"
 
                     # --- 1. Greedy Determinista (1 run) ---
                     print(f"    Ejecutando Greedy Determinista {results_key_suffix}...")
@@ -358,7 +321,7 @@ if __name__ == "__main__":
                     res_d = {'cost': cost_d, 'time': time_d, 'schedule': schedule_d, 'landing_times': times_d, 'initial_cost': cost_d, 'initial_seed': None}
                     case_results[f'deterministic_{runway_tag}'] = res_d
                     is_valid_d = write_result_to_csv("Greedy Deterministic", num_runways, None, "N/A", res_d)
-                    det_sol = res_d if is_valid_d else None # Guardar si es válido para usar después
+                    det_sol = res_d if is_valid_d else None
 
                     # --- 2. Greedy Estocástico (10 runs) ---
                     print(f"    Ejecutando Greedy Estocástico {results_key_suffix} ({NUM_STOCHASTIC_RUNS} runs)...")
@@ -367,22 +330,19 @@ if __name__ == "__main__":
                         start_time = time.time()
                         schedule_s, times_s, cost_s = solve_greedy_stochastic(D, planes, separations_matrix, num_runways, seed, RCL_SIZE)
                         time_s = time.time() - start_time
-                        # Para Greedy, el costo inicial es él mismo (o INF si falló)
                         res_s = {'seed': seed, 'cost': cost_s, 'time': time_s, 'schedule': schedule_s, 'landing_times': times_s, 'initial_cost': cost_s, 'initial_seed': seed}
                         stochastic_runs.append(res_s)
                         write_result_to_csv("Greedy Stochastic", num_runways, f"RCL={RCL_SIZE}", "N/A", res_s)
                     case_results[f'stochastic_{runway_tag}_runs'] = stochastic_runs
-                    # Filtrar solo las corridas estocásticas válidas para usar como punto de partida
                     valid_stochastic_runs = [run for run in stochastic_runs if run.get('cost') is not None and run['cost'] != INFINITO_COSTO]
-
 
                     # --- 3. HC desde Determinista (1 run) ---
                     print(f"    Ejecutando HC desde Determinista {results_key_suffix}...")
                     hc_cost_d, hc_time_d = INFINITO_COSTO, 0
                     hc_schedule_d, hc_times_d = [], {}
-                    initial_cost_hc_d = cost_d # Costo inicial es el del determinista
+                    initial_cost_hc_d = cost_d
                     res_hc_d = {'cost': INFINITO_COSTO, 'time': 0, 'schedule': [], 'landing_times': {}, 'initial_cost': initial_cost_hc_d, 'initial_seed': None} # Default
-                    if det_sol: # Solo ejecutar si la solución determinista fue válida
+                    if det_sol:
                         start_time = time.time()
                         hc_schedule_d, hc_times_d, hc_cost_d = hill_climbing_first_improvement(
                             det_sol['schedule'], det_sol['landing_times'], det_sol['cost'],
@@ -397,8 +357,6 @@ if __name__ == "__main__":
 
                     # --- 4. HC desde CADA Estocástica (10 runs * 3 "configuraciones" = 30 runs) ---
                     print(f"    Ejecutando HC desde CADA Estocástica {results_key_suffix}...")
-                    # Las 3 "configuraciones" (10, 25, 50) son solo etiquetas según tu plan, HC_MAX_ITER es el parámetro real usado.
-                    # Ejecutaremos HC_MAX_ITER para cada solución estocástica válida una vez por cada etiqueta.
                     for hc_iter_label in HC_FROM_STOCH_LABELS:
                          hc_from_stoch_runs = []
                          print(f"      Config HC (Label '{hc_iter_label}', Iter={HC_MAX_ITER}) para {len(valid_stochastic_runs)} soluciones Stoch válidas...")
@@ -416,19 +374,17 @@ if __name__ == "__main__":
                              res_hc_s = {'cost': hc_cost_s, 'time': hc_time_s, 'schedule': hc_schedule_s, 'landing_times': hc_times_s, 'initial_cost': initial_cost_s, 'initial_seed': initial_seed}
                              hc_from_stoch_runs.append(res_hc_s)
                              write_result_to_csv("HC", num_runways, params_hc, start_point_str, res_hc_s)
-                         # Guardar la lista de resultados de HC para esta "configuración" y pista
                          case_results[f'hc_from_stochastic_{hc_iter_label}_{results_key_suffix}_runs'] = hc_from_stoch_runs
-
 
                     # --- 5. SA desde Determinista (5 runs) ---
                     print(f"    Ejecutando SA desde Determinista {results_key_suffix}...")
-                    initial_cost_sa_d = cost_d # Costo inicial es el del determinista
+                    initial_cost_sa_d = cost_d
                     for T_init in SA_INITIAL_TEMPS:
                         sa_cost_d, sa_time_d = INFINITO_COSTO, 0
                         sa_schedule_d, sa_times_d = [], {}
-                        res_sa_d = {'cost': INFINITO_COSTO, 'time': 0, 'schedule': [], 'landing_times': {}, 'initial_cost': initial_cost_sa_d, 'initial_seed': None} # Default
+                        res_sa_d = {'cost': INFINITO_COSTO, 'time': 0, 'schedule': [], 'landing_times': {}, 'initial_cost': initial_cost_sa_d, 'initial_seed': None}
                         params_sa = f"T_init={T_init}, T_min={SA_T_MIN}, alpha={SA_ALPHA}, iter/T={SA_ITER_PER_TEMP}, neigh_att={SA_MAX_NEIGHBOR_ATTEMPTS}"
-                        if det_sol: # Solo ejecutar si la solución determinista fue válida
+                        if det_sol:
                             start_time = time.time()
                             sa_schedule_d, sa_times_d, sa_cost_d = solve_simulated_annealing(
                                 D, planes, separations_matrix, num_runways, det_sol,
@@ -437,7 +393,7 @@ if __name__ == "__main__":
                             sa_time_d = time.time() - start_time
                             res_sa_d = {'cost': sa_cost_d, 'time': sa_time_d, 'schedule': sa_schedule_d, 'landing_times': sa_times_d, 'initial_cost': initial_cost_sa_d, 'initial_seed': None}
 
-                        case_results[f'sa_T{T_init}_from_det_{results_key_suffix}'] = res_sa_d # Clave ajustada
+                        case_results[f'sa_T{T_init}_from_det_{results_key_suffix}'] = res_sa_d
                         write_result_to_csv("SA", num_runways, params_sa, "Deterministic", res_sa_d)
 
                     # --- 6. SA desde CADA Estocástica (5 Temps * 10 runs = 50 runs) ---
@@ -459,14 +415,13 @@ if __name__ == "__main__":
                             res_sa_s = {'cost': sa_cost_s, 'time': sa_time_s, 'schedule': sa_schedule_s, 'landing_times': sa_times_s, 'initial_cost': initial_cost_s, 'initial_seed': initial_seed}
                             sa_from_stoch_runs.append(res_sa_s)
                             write_result_to_csv("SA", num_runways, params_sa, start_point_str, res_sa_s)
-                        # Guardar la lista de resultados de SA para esta Temp y pista
                         case_results[f'sa_T{T_init}_from_stochastic_{results_key_suffix}_runs'] = sa_from_stoch_runs
 
 
                 # --- Fin del Bucle por Pistas ---
 
                 # --- Fin de Procesamiento del Caso ---
-                all_results_detailed[filename] = copy.deepcopy(case_results) # Guardar copia profunda para JSON
+                all_results_detailed[filename] = copy.deepcopy(case_results)
                 print(f"--------------- Fin Procesamiento {filename} ---------------")
 
                 # --- Imprimir Resumen Detallado para este Caso ---
@@ -482,23 +437,18 @@ if __name__ == "__main__":
     # --- Guardar Resultados Detallados en JSON ---
     print("\nGuardando resultados detallados en JSON...")
     try:
-        # Serializador para manejar tipos no estándar (como sets, si los hubiera)
         def default_serializer(obj):
             if isinstance(obj, set): return list(obj)
-            # Convertir cualquier otro objeto no serializable a string
             try:
-                # Intenta convertir a float si parece número, sino string
                 return float(obj)
             except (ValueError, TypeError):
                  try:
-                      json.dumps(obj) # Intenta serializar directamente
+                      json.dumps(obj)
                       return obj
                  except TypeError:
-                      return str(obj) # Fallback a string
-
+                      return str(obj)
 
         with open(json_output_filename, 'w') as jsonfile:
-            # Usar copy.deepcopy para asegurar que no haya referencias circulares o tipos complejos inesperados
             json.dump(copy.deepcopy(all_results_detailed), jsonfile, indent=2, default=default_serializer)
         print(f"--- Resultados detallados guardados en '{json_output_filename}' ---")
     except Exception as e:
@@ -506,13 +456,8 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
 
-
-    # --- Resumen Global Rápido (Opcional) ---
-    # Este resumen ya no refleja bien las 97*2 corridas, es más útil el resumen por caso.
-    print("\n\n################ Resumen Global Rápido (Aproximado) ################")
+    print("\n\n#############################################################")
     total_cases = len(all_results_detailed)
     print(f"Casos procesados: {total_cases}")
-    # Contar corridas válidas/inválidas podría hacerse recorriendo all_results_detailed si es necesario
     print("#############################################################")
-
     print("\n--- Ejecución Finalizada ---")

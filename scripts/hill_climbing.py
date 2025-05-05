@@ -1,15 +1,22 @@
-import copy # Para copiar objetos y evitar modificar los originales
-from scripts.calculate_cost import calculate_total_cost
+# hill_climbing.py (recalculate_landing_times Corregido)
+import copy
+try:
+    # Adjust path if necessary
+    from scripts.calculate_cost import calculate_total_cost
+except ImportError:
+    try:
+        from calculate_cost import calculate_total_cost
+    except ImportError:
+        print("ERROR FATAL HC: calculate_cost no encontrado.")
+        def calculate_total_cost(*args, **kwargs): return float('inf')
 
 # --- Constantes ---
 INFINITO_COSTO = float('inf')
-# Asegúrate que coincida con el usado en otros módulos si es relevante
-# MARCADOR_INFINITO_ENTRADA = 99999
 
 def recalculate_landing_times(sequence, D, planes_data, separations, num_runways):
     """
-    Recalcula los tiempos de aterrizaje más tempranos posibles para una secuencia dada.
-    (Esta función no cambia entre First y Best Improvement)
+    Recalcula los tiempos de aterrizaje más tempranos posibles para una secuencia dada,
+    respetando E_k, L_k y las separaciones tau_ij EN LA MISMA PISTA.
 
     Args:
         sequence (list): Una lista de IDs de avión en el orden de aterrizaje propuesto.
@@ -21,112 +28,132 @@ def recalculate_landing_times(sequence, D, planes_data, separations, num_runways
     Returns:
         tuple: (landing_times, cost, is_feasible)
                - landing_times (dict): {plane_id: tiempo} si es factible, None si no.
-               - cost (float): Costo total si es factible, INFINITO_COSTO si no.
+               - cost (float): Costo total (calculado con costo original) si es factible, INFINITO_COSTO si no.
                - is_feasible (bool): True si la secuencia es factible, False si no.
     """
     landing_times = {}
-    if not sequence: # Secuencia vacía es factible con costo 0
+    if not sequence:
         return {}, 0.0, True
 
-    is_feasible = True # Asumir factibilidad inicial
+    is_feasible = True
 
     if num_runways == 1:
         last_scheduled_id = None
-        last_landing_time = -1
+        last_landing_time = -1.0 # Use float for time
         for plane_id in sequence:
+            # Validate plane_id
+            if not (0 <= plane_id < len(planes_data)):
+                print(f"ERROR Recalc 1P: ID inválido {plane_id}.")
+                return None, INFINITO_COSTO, False
+
             E, P, L, Ce, Cl = planes_data[plane_id]
-            min_start_time = E
+            min_start_time = float(E) # Ensure float
+
             if last_scheduled_id is not None:
-                separation_needed = separations[last_scheduled_id][plane_id]
-                # Manejo opcional de separaciones infinitas si existe ese marcador
-                # if separation_needed == MARCADOR_INFINITO_ENTRADA:
-                #     is_feasible = False
-                #     break
+                 # Validate indices for separations
+                if not (0 <= last_scheduled_id < D and 0 <= plane_id < D):
+                    print(f"ERROR Recalc 1P: Índices inválidos para separación ({last_scheduled_id}, {plane_id}).")
+                    return None, INFINITO_COSTO, False
+                if last_scheduled_id >= len(separations) or plane_id >= len(separations[last_scheduled_id]):
+                     print(f"ERROR Recalc 1P: Índice fuera de rango para separations[{last_scheduled_id}][{plane_id}].")
+                     return None, INFINITO_COSTO, False
+
+                separation_needed = float(separations[last_scheduled_id][plane_id])
                 min_start_time = max(min_start_time, last_landing_time + separation_needed)
 
-            # Verificar ventana L
             if min_start_time > L:
                  is_feasible = False
-                 break # Esta secuencia es infactible
+                 # print(f"DEBUG Recalc 1P: Infeasible Lk for {plane_id}. T={min_start_time} > L={L}") # Debug
+                 break
 
-            # Asignar tiempo y actualizar estado para el siguiente
             landing_times[plane_id] = min_start_time
             last_scheduled_id = plane_id
             last_landing_time = min_start_time
 
     elif num_runways == 2:
         runway_last_id = [None, None]
-        runway_last_time = [-1, -1]
-        historial_aterrizajes = [] # Mantenemos (id, tiempo) para calcular EAT global
+        runway_last_time = [-1.0, -1.0] # Use float
 
         for plane_id in sequence:
+            # Validate plane_id
+            if not (0 <= plane_id < len(planes_data)):
+                print(f"ERROR Recalc 2P: ID inválido {plane_id}.")
+                return None, INFINITO_COSTO, False
+
             E, P, L, Ce, Cl = planes_data[plane_id]
+            earliest_possible_on_runway = [float(E), float(E)] # Earliest start based on E_k
 
-            # 1. Calcular EAT Global (Earliest Arrival Time) basado en separaciones
-            #    con TODOS los aviones previamente aterrizados en CUALQUIER pista.
-            eat_global = E
-            for id_previo, tiempo_previo in historial_aterrizajes:
-                 separation_needed = separations[id_previo][plane_id]
-                 # Manejo opcional de separaciones infinitas
-                 # if separation_needed == MARCADOR_INFINITO_ENTRADA:
-                 #     is_feasible = False
-                 #     break
-                 eat_global = max(eat_global, tiempo_previo + separation_needed)
-            if not is_feasible: break # Salir si ya se detectó infactibilidad
+            # Calculate earliest start time considering separation ON EACH RUNWAY
+            for r_idx in range(num_runways):
+                last_id_on_runway = runway_last_id[r_idx]
+                if last_id_on_runway is not None:
+                    # Validate indices for separations
+                    if not (0 <= last_id_on_runway < D and 0 <= plane_id < D):
+                        print(f"ERROR Recalc 2P: Índices inválidos para separación ({last_id_on_runway}, {plane_id}).")
+                        return None, INFINITO_COSTO, False
+                    if last_id_on_runway >= len(separations) or plane_id >= len(separations[last_id_on_runway]):
+                         print(f"ERROR Recalc 2P: Índice fuera de rango para separations[{last_id_on_runway}][{plane_id}].")
+                         return None, INFINITO_COSTO, False
 
-            # 2. Encontrar la mejor pista y tiempo factible para este avión
+                    separation_needed = float(separations[last_id_on_runway][plane_id])
+                    earliest_possible_on_runway[r_idx] = max(
+                        earliest_possible_on_runway[r_idx],
+                        runway_last_time[r_idx] + separation_needed
+                    )
+
+            # Find the best feasible assignment (earliest time respecting L)
             best_time_for_plane = INFINITO_COSTO
             best_runway = -1
-            for pista_id in range(num_runways):
-                 # El tiempo mínimo en esta pista depende de la disponibilidad global (eat_global)
-                 # y del último aterrizaje EN ESA PISTA específica.
-                 # Nota: En la implementación original de recalculate, la lógica podría necesitar revisión
-                 # para asegurar que considera la disponibilidad de la pista correctamente.
-                 # Una interpretación común es que el avión puede aterrizar en la pista `pista_id`
-                 # en el tiempo `max(eat_global, runway_last_time[pista_id])`, siempre que respete L.
-                 # Sin embargo, la implementación original parece usar solo runway_last_time para calcular
-                 # el tiempo potencial, lo cual podría ser incorrecto si eat_global es mayor.
-                 # Vamos a usar la lógica más segura: max(eat_global, runway_last_time[pista_id])
 
-                 tiempo_disponible_pista = runway_last_time[pista_id]
-                 tiempo_potencial = max(eat_global, tiempo_disponible_pista) # Debe respetar ambas restricciones
+            for r_idx in range(num_runways):
+                potential_time = earliest_possible_on_runway[r_idx]
+                if potential_time <= L: # Check feasibility regarding L
+                    if potential_time < best_time_for_plane:
+                        best_time_for_plane = potential_time
+                        best_runway = r_idx
+                    # Tie-breaking: prefer runway 0 if times are equal
+                    elif potential_time == best_time_for_plane and r_idx == 0:
+                        best_runway = 0 # Explicitly prefer runway 0
 
-                 # Factibilidad L
-                 if tiempo_potencial <= L:
-                      # ¿Es el mejor tiempo factible encontrado hasta ahora para este avión?
-                      if tiempo_potencial < best_time_for_plane or \
-                         (tiempo_potencial == best_time_for_plane and pista_id < best_runway): # Preferir pista 0 en empates
-                          best_time_for_plane = tiempo_potencial
-                          best_runway = pista_id
+            # Check if a feasible assignment was found
+            if best_runway == -1:
+                is_feasible = False
+                # print(f"DEBUG Recalc 2P: Infeasible Lk for {plane_id}. R0_T={earliest_possible_on_runway[0]}, R1_T={earliest_possible_on_runway[1]} > L={L}") # Debug
+                break
 
-            # 3. Verificar si se encontró una asignación factible
-            if best_runway == -1: # No se encontró pista/tiempo <= L
-                 is_feasible = False
-                 break # Esta secuencia es infactible
-
-            # 4. Asignar y actualizar estado
+            # Assign and update state for the chosen runway
             landing_times[plane_id] = best_time_for_plane
-            runway_last_id[best_runway] = plane_id       # Actualiza el último en la pista asignada
-            runway_last_time[best_runway] = best_time_for_plane # Actualiza tiempo libre de esa pista
-            historial_aterrizajes.append((plane_id, best_time_for_plane)) # Añadir al historial global
+            runway_last_id[best_runway] = plane_id
+            runway_last_time[best_runway] = best_time_for_plane
 
     else:
         raise ValueError("Num pistas debe ser 1 o 2")
 
-    # Calcular costo final solo si la secuencia completa fue factible
+    # Calculate final cost only if the entire sequence was feasible
     if is_feasible:
+        # Ensure all planes in sequence have assigned times before calculating cost
+        if len(landing_times) != len(sequence):
+             print(f"ERROR Recalc Final: Mismatch len(landing_times)={len(landing_times)} vs len(sequence)={len(sequence)}")
+             return None, INFINITO_COSTO, False # Should not happen if is_feasible is True
+
         final_cost = calculate_total_cost(planes_data, sequence, landing_times)
+        # Double check cost calculation didn't return INF
+        if final_cost == INFINITO_COSTO:
+             print(f"ERROR Recalc Final: calculate_total_cost returned INF for a supposedly feasible sequence.")
+             return landing_times, INFINITO_COSTO, False # Mark as infeasible if cost calc failed
         return landing_times, final_cost, True
     else:
-        # Si no fue factible en algún punto, retornar fallo
+        # Return None for times if infeasible
         return None, INFINITO_COSTO, False
 
 
+# --- Hill Climbing (Best Improvement - Sin cambios en su lógica interna) ---
 def hill_climbing_best_improvement(initial_schedule, initial_times, initial_cost,
                                     D, planes_data, separations, num_runways, max_iterations=1000):
     """
     Realiza Hill Climbing (Mejor Mejora) usando intercambio 2-opt.
     Explora todos los vecinos en cada iteración y se mueve al mejor si mejora la solución actual.
+    USA LA VERSIÓN CORREGIDA DE recalculate_landing_times.
 
     Args:
         initial_schedule (list): Secuencia inicial de IDs de avión.
@@ -144,6 +171,8 @@ def hill_climbing_best_improvement(initial_schedule, initial_times, initial_cost
     """
     if D < 2: # No se pueden hacer intercambios
         return initial_schedule, initial_times, initial_cost
+    if initial_cost == INFINITO_COSTO or not initial_schedule:
+         return initial_schedule, initial_times, initial_cost # Return invalid input as is
 
     current_schedule = list(initial_schedule) # Copiar para no modificar original
     current_times = dict(initial_times)     # Copiar
@@ -164,7 +193,7 @@ def hill_climbing_best_improvement(initial_schedule, initial_times, initial_cost
                 neighbor_schedule_try = list(current_schedule)
                 neighbor_schedule_try[i], neighbor_schedule_try[j] = neighbor_schedule_try[j], neighbor_schedule_try[i]
 
-                # Recalcular tiempos, costo y factibilidad para el vecino
+                # Recalcular tiempos, costo y factibilidad para el vecino (USA VERSIÓN CORREGIDA)
                 neighbor_times_try, neighbor_cost_try, is_feasible = recalculate_landing_times(
                     neighbor_schedule_try, D, planes_data, separations, num_runways
                 )
@@ -193,3 +222,4 @@ def hill_climbing_best_improvement(initial_schedule, initial_times, initial_cost
 
     # Retornar la mejor solución encontrada al final del proceso
     return current_schedule, current_times, current_cost
+

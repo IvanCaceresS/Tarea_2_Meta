@@ -2,7 +2,7 @@
 import random
 import time
 from scripts.greedy_stochastic import solve_greedy_stochastic
-from scripts.hill_climbing import hill_climbing_first_improvement
+from scripts.hill_climbing import hill_climbing_best_improvement
 from scripts.calculate_cost import calculate_total_cost # Necesario si recalculamos al final
 
 # --- Constantes ---
@@ -52,7 +52,7 @@ def solve_grasp(D, planes_data, separations, num_runways,
 
         # --- Fase 2: Búsqueda Local (Hill Climbing) ---
         # Partir de la solución construida
-        hc_schedule, hc_times, hc_cost = hill_climbing_first_improvement(
+        hc_schedule, hc_times, hc_cost = hill_climbing_best_improvement(
             construction_schedule, construction_times, construction_cost,
             D, planes_data, separations, num_runways, hc_max_iter
         )
@@ -109,7 +109,7 @@ def solve_hc_from_deterministic(D, planes_data, separations, num_runways,
     # Aplicar Hill Climbing
     # print("      Aplicando HC a solución determinista...")
     start_time_hc = time.time()
-    hc_schedule, hc_times, hc_cost = hill_climbing_first_improvement(
+    hc_schedule, hc_times, hc_cost = hill_climbing_best_improvement(
         initial_schedule, initial_times, initial_cost,
         D, planes_data, separations, num_runways, hc_max_iter
     )

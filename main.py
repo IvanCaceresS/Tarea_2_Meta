@@ -12,7 +12,7 @@ import traceback
 from scripts.read_case_data import read_case_data
 from scripts.greedy_deterministic import solve_greedy_deterministic
 from scripts.greedy_stochastic import solve_greedy_stochastic
-from scripts.hill_climbing import hill_climbing_first_improvement, recalculate_landing_times
+from scripts.hill_climbing import hill_climbing_best_improvement, recalculate_landing_times
 from scripts.simulated_annealing import solve_simulated_annealing
 from scripts.grasp import solve_grasp
 
@@ -20,8 +20,8 @@ from scripts.grasp import solve_grasp
 INFINITO_COSTO = float('inf')
 NUM_STOCHASTIC_RUNS = 10
 RCL_SIZE = 3
-HC_MAX_ITER = 500
-GRASP_RESTARTS_LIST = [10, 25, 50]
+HC_MAX_ITER = 50000
+GRASP_RESTARTS_LIST = [10000, 25000, 50000]
 NUM_GRASP_EXECUTIONS = 10
 SA_INITIAL_TEMPS = [10000, 5000, 1000, 500, 100]
 SA_T_MIN = 0.1
@@ -324,7 +324,7 @@ if __name__ == "__main__":
                     is_feasible_hc_d = False
                     if det_sol:
                         start_time = time.time()
-                        hc_schedule_d, hc_times_d, hc_cost_d = hill_climbing_first_improvement(
+                        hc_schedule_d, hc_times_d, hc_cost_d = hill_climbing_best_improvement(
                             det_sol['schedule'], det_sol['landing_times'], det_sol['cost'],
                             D, planes, separations_matrix, num_runways, HC_MAX_ITER
                         )

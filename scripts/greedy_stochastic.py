@@ -1,4 +1,4 @@
-# greedy_stochastic.py (Versión Mejorada)
+# greedy_stochastic.py (Versión Corregida con RCL basada en Costo)
 import random
 import math
 import copy
@@ -21,11 +21,13 @@ except ImportError:
 
 # --- Constantes ---
 INFINITO_COSTO = float('inf')
-EPSILON = 1e-6 # Pequeño valor para evitar división por cero en pesos
+# EPSILON = 1e-6 # Ya no se necesita para la selección ponderada
 
 def solve_greedy_stochastic(D, planes_data, separations, num_runways, seed, rcl_size=3):
     """
     Implementa el algoritmo greedy estocástico priorizando la factibilidad.
+    La Lista Restringida de Candidatos (RCL) se construye con los 'rcl_size'
+    candidatos factibles que generan el menor costo individual inmediato.
     Si no se encuentran candidatos factibles en algún paso, la construcción falla
     y retorna costo infinito para esa ejecución.
 
@@ -60,48 +62,40 @@ def solve_greedy_stochastic(D, planes_data, separations, num_runways, seed, rcl_
                 min_start_time = E
                 if last_scheduled_id is not None:
                     separation_needed = separations[last_scheduled_id][plane_id]
-                    # Asumiendo que MARCADOR_INFINITO_ENTRADA no es un problema aquí
-                    # ya que si ocurre, el recalculate_landing_times lo detectará.
                     min_start_time = max(min_start_time, last_landing_time + separation_needed)
 
                 # Solo considerar candidatos factibles respecto a L
                 if min_start_time <= L:
-                    slack = L - min_start_time # Slack positivo o cero
+                    # *** NUEVO: Calcular costo individual ***
+                    costo_individual = Ce * max(0, P - min_start_time) + Cl * max(0, min_start_time - P)
                     feasible_candidates.append({
                         'id': plane_id,
                         'min_time': min_start_time,
-                        'L': L,
-                        'P': P,
-                        'slack': slack
+                        'cost': costo_individual, # Guardar costo individual
+                        # 'L': L, # Ya no son necesarios para ordenar/seleccionar
+                        # 'P': P,
+                        # 'slack': L - min_start_time
                     })
                 # else: Se ignora el candidato por ser infactible (min_start_time > L)
 
             # --- Selección de la RCL y Candidato ---
             if not feasible_candidates:
-                # ¡No quedan candidatos factibles! Falló la construcción para esta seed.
                 # print(f"WARN (Stoch 1P, Seed {seed}): No se encontraron candidatos factibles. No planificados: {unscheduled}. Construcción fallida.")
                 return schedule, landing_times, INFINITO_COSTO # Retorna fallo
 
-            # Ordenar candidatos factibles (por slack, luego P, luego id)
-            feasible_candidates.sort(key=lambda x: (x['slack'], x['P'], x['id']))
+            # *** NUEVO: Ordenar candidatos factibles por costo individual (menor primero) ***
+            feasible_candidates.sort(key=lambda x: x['cost'])
 
+            # *** NUEVO: Construir RCL con los mejores 'rcl_size' por costo ***
             current_rcl_size = min(rcl_size, len(feasible_candidates))
             rcl = feasible_candidates[:current_rcl_size]
 
-            chosen_candidate = None
-            # Selección PONDERADA (inverso del slack) de la RCL
-            if rcl:
-                weights = [1.0 / (c['slack'] + EPSILON) for c in rcl] # Usar slack para ponderar
-                total_weight = sum(weights)
-                if total_weight > EPSILON:
-                    probabilities = [w / total_weight for w in weights]
-                    chosen_candidate = random.choices(rcl, weights=probabilities, k=1)[0]
-                else: # Fallback a selección uniforme si pesos son problemáticos
-                    chosen_candidate = random.choice(rcl)
-            else:
-                 # Esto no debería ocurrir si feasible_candidates no estaba vacío
+            if not rcl:
                  print(f"ERROR LÓGICO (Stoch 1P, Seed {seed}): RCL vacía inesperadamente.")
                  return schedule, landing_times, INFINITO_COSTO # Retorna fallo
+
+            # *** NUEVO: Selección uniforme de la RCL (ya no ponderada por slack) ***
+            chosen_candidate = random.choice(rcl)
 
             # --- Asignación y Actualización ---
             chosen_plane_id = chosen_candidate['id']
@@ -117,6 +111,7 @@ def solve_greedy_stochastic(D, planes_data, separations, num_runways, seed, rcl_
     elif num_runways == 2:
         runway_last_id = [None, None]
         runway_last_time = [-1, -1]
+        # runway_assignments = {} # No parece usarse fuera de la función, se puede quitar si no es necesario para el futuro
         while unscheduled:
             feasible_candidates = []
             for plane_id in unscheduled:
@@ -141,43 +136,37 @@ def solve_greedy_stochastic(D, planes_data, separations, num_runways, seed, rcl_
 
                 # Si se encontró al menos una opción factible para este avión
                 if best_runway_for_plane != -1:
-                    slack = L - best_feasible_time # Slack positivo o cero
+                    # *** NUEVO: Calcular costo individual para el mejor tiempo/pista encontrado ***
+                    costo_individual = Ce * max(0, P - best_feasible_time) + Cl * max(0, best_feasible_time - P)
                     feasible_candidates.append({
                         'id': plane_id,
                         'min_time': best_feasible_time, # El mejor tiempo factible encontrado
                         'assigned_runway': best_runway_for_plane, # La pista para ese mejor tiempo
-                        'L': L,
-                        'P': P,
-                        'slack': slack
+                        'cost': costo_individual # Guardar costo individual
+                        # 'L': L, # Ya no son necesarios
+                        # 'P': P,
+                        # 'slack': L - best_feasible_time
                     })
                 # else: Se ignora, no hay forma factible de aterrizar este avión ahora
 
             # --- Selección de la RCL y Candidato ---
             if not feasible_candidates:
-                # ¡No quedan candidatos factibles! Falló la construcción.
                 # print(f"WARN (Stoch 2P, Seed {seed}): No se encontraron candidatos factibles. No planificados: {unscheduled}. Construcción fallida.")
                 return schedule, landing_times, INFINITO_COSTO # Retorna fallo
 
-            # Ordenar candidatos factibles (por slack, luego P, luego id)
-            feasible_candidates.sort(key=lambda x: (x['slack'], x['P'], x['id']))
+            # *** NUEVO: Ordenar candidatos factibles por costo individual (menor primero) ***
+            feasible_candidates.sort(key=lambda x: x['cost'])
 
+            # *** NUEVO: Construir RCL con los mejores 'rcl_size' por costo ***
             current_rcl_size = min(rcl_size, len(feasible_candidates))
             rcl = feasible_candidates[:current_rcl_size]
 
-            chosen_candidate = None
-            # Selección PONDERADA de la RCL
-            if rcl:
-                weights = [1.0 / (c['slack'] + EPSILON) for c in rcl]
-                total_weight = sum(weights)
-                if total_weight > EPSILON:
-                    probabilities = [w / total_weight for w in weights]
-                    chosen_candidate = random.choices(rcl, weights=probabilities, k=1)[0]
-                else:
-                    chosen_candidate = random.choice(rcl)
-            else:
+            if not rcl:
                 print(f"ERROR LÓGICO (Stoch 2P, Seed {seed}): RCL vacía inesperadamente.")
                 return schedule, landing_times, INFINITO_COSTO # Retorna fallo
 
+            # *** NUEVO: Selección uniforme de la RCL ***
+            chosen_candidate = random.choice(rcl)
 
             # --- Asignación y Actualización ---
             chosen_plane_id = chosen_candidate['id']
@@ -189,6 +178,7 @@ def solve_greedy_stochastic(D, planes_data, separations, num_runways, seed, rcl_
             unscheduled.remove(chosen_plane_id)
             runway_last_id[chosen_runway] = chosen_plane_id
             runway_last_time[chosen_runway] = chosen_time
+            # runway_assignments[chosen_plane_id] = chosen_runway # Quitado si no se usa
 
     else:
         raise ValueError("El número de pistas debe ser 1 o 2")

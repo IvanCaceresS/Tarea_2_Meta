@@ -1,15 +1,20 @@
+# main.py
 import os 
 import csv
 from datetime import datetime
 import time 
 
+# Asegúrate que estas rutas sean correctas para tu estructura de carpetas
 from scripts.lector_cases import read_case 
 from scripts.greedy_deterministic import resolver as resolver_gd 
 from scripts.greedy_stochastic import resolver as resolver_ge
 # from scripts.verificador import verificar_solucion # Mantengo esto comentado como lo tienes
 
+# --- CONFIGURACIÓN PARA CSV RESUMIDO ---
 CARPETA_RESULTADOS = "results" 
 NOMBRE_BASE_CSV_RESUMEN = f"resumen_soluciones_aterrizajes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+# El path completo se construirá después de asegurar que la carpeta exista
+# PATH_COMPLETO_CSV_RESUMEN se definirá en main()
 
 CABECERA_CSV_RESUMEN = [
     'NombreCaso', 'Algoritmo', 'NumPistas', 'SemillaGE', 
@@ -17,19 +22,20 @@ CABECERA_CSV_RESUMEN = [
     'AvionesNoProgramados'
 ]
 
+# --- FUNCIÓN PARA ESCRIBIR EN CSV RESUMIDO (MODIFICADA PARA USAR CARPETA) ---
 def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, tiempo_comp):
-    if not solucion:
+    """
+    Escribe una línea de resumen de la solución en el archivo CSV especificado.
+    """
+    if not solucion: # Si el algoritmo no pudo generar una solución
         print(f"      ADVERTENCIA CSV (Resumen): No hay datos de solución para {nombre_caso}, {algoritmo_nombre}, {num_pistas}p, semilla {semilla_ge}.")
         # Escribir una fila indicando que no hubo solución del algoritmo (diferente a infactible)
         costo_display = "NO_SOLUCION"
         orden_ids_str = ""
         aviones_no_programados_str = ""
     # NUEVA LÓGICA PARA MANEJAR 'es_factible'
-    elif not solucion.get('es_factible', True): # Si 'es_factible' es False
-        costo_display = "INFACTIBLE" # Mostrar "INFACTIBLE" en lugar del costo numérico
-        # El costo numérico original (de los programados) podría guardarse si se quisiera, pero "INFACTIBLE" es más claro.
-        # solucion['costo_total'] podría seguir teniendo la suma de los programados, o la penalización si la mantienes.
-        # Para el CSV resumido, mostrar "INFACTIBLE" es el objetivo.
+    elif not solucion.get('es_factible', True): # Si 'es_factible' es False o no existe (asumir factible si no existe)
+        costo_display = "INFACTIBLE" 
         secuencia_aterrizajes = solucion.get('secuencia_aterrizajes', [])
         orden_ids = [aterrizaje['avion_id'] for aterrizaje in secuencia_aterrizajes]
         orden_ids_str = "-".join(map(str, orden_ids)) 
@@ -52,7 +58,7 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
         algoritmo_nombre,
         num_pistas,
         semilla_ge if algoritmo_nombre == 'GE' else 'N/A',
-        costo_display, # Usar el costo_display (numérico o "INFACTIBLE")
+        costo_display, 
         f"{tiempo_comp:.4f}", 
         orden_ids_str,
         aviones_no_programados_str
@@ -69,6 +75,7 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
     except IOError as e:
         print(f"      ERROR al escribir en CSV (Resumen): {e}")
 
+
 # --- (La función original escribir_resultados_csv detallada permanece comentada) ---
 # NOMBRE_ARCHIVO_CSV_DETALLADO = f"resultados_aterrizajes_DETALLADO_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 # CABECERA_CSV_DETALLADO = [
@@ -77,7 +84,7 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
 #     'PistaAsignada', 'CostoIndividualAvion',
 #     'Ek_Avion', 'Pk_Avion', 'Lk_Avion'
 # ]
-# def escribir_resultados_csv(nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, datos_entrada_aviones):
+# def escribir_resultados_csv(nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, datos_entrada_aviones): # Nombre original de tu función detallada
 #     """
 #     Escribe los detalles de una solución en el archivo CSV.
 #     """
@@ -111,13 +118,13 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
 #         ]
 #         filas_para_escribir.append(fila)
 
-#     escribir_cabecera = not os.path.exists(NOMBRE_ARCHIVO_CSV_DETALLADO) # Usar el nombre del CSV detallado
+#     escribir_cabecera = not os.path.exists(NOMBRE_ARCHIVO_CSV_DETALLADO) 
     
 #     try:
-#         with open(NOMBRE_ARCHIVO_CSV_DETALLADO, 'a', newline='', encoding='utf-8') as f_csv: # Usar el nombre del CSV detallado
+#         with open(NOMBRE_ARCHIVO_CSV_DETALLADO, 'a', newline='', encoding='utf-8') as f_csv: 
 #             writer = csv.writer(f_csv)
 #             if escribir_cabecera:
-#                 writer.writerow(CABECERA_CSV_DETALLADO) # Usar la cabecera del CSV detallado
+#                 writer.writerow(CABECERA_CSV_DETALLADO) 
 #             writer.writerows(filas_para_escribir)
 #     except IOError as e:
 #         print(f"           ERROR al escribir en CSV: {e}")
@@ -136,7 +143,7 @@ def main():
             print(f"Carpeta '{CARPETA_RESULTADOS}' creada.")
         except OSError as e:
             print(f"Error al crear la carpeta '{CARPETA_RESULTADOS}': {e}")
-            return # Salir si no se puede crear la carpeta
+            return 
             
     path_completo_csv_resumen = os.path.join(CARPETA_RESULTADOS, NOMBRE_BASE_CSV_RESUMEN)
 
@@ -176,7 +183,8 @@ def main():
             tiempo_comp_gd1 = tiempo_fin_gd1 - tiempo_inicio_gd1
             
             if solucion_gd_1pista:
-                print(f"      Costo Total ({num_pistas_gd_1} pista, GD): {solucion_gd_1pista['costo_total']:.2f} (Tiempo: {tiempo_comp_gd1:.4f}s)")
+                costo_display_gd1 = f"{solucion_gd_1pista['costo_total']:.2f}" if solucion_gd_1pista.get('es_factible', True) else "INFACTIBLE"
+                print(f"      Costo Total ({num_pistas_gd_1} pista, GD): {costo_display_gd1} (Tiempo: {tiempo_comp_gd1:.4f}s)")
                 if 'aviones_no_programados' in solucion_gd_1pista and solucion_gd_1pista['aviones_no_programados']:
                     print(f"      Aviones no programados ({num_pistas_gd_1} pista, GD): {solucion_gd_1pista['aviones_no_programados']}")
                 escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_gd, num_pistas_gd_1, 'N/A', solucion_gd_1pista, tiempo_comp_gd1)
@@ -194,7 +202,8 @@ def main():
             tiempo_comp_gd2 = tiempo_fin_gd2 - tiempo_inicio_gd2
             
             if solucion_gd_2pistas:
-                print(f"      Costo Total ({num_pistas_gd_2} pistas, GD): {solucion_gd_2pistas['costo_total']:.2f} (Tiempo: {tiempo_comp_gd2:.4f}s)")
+                costo_display_gd2 = f"{solucion_gd_2pistas['costo_total']:.2f}" if solucion_gd_2pistas.get('es_factible', True) else "INFACTIBLE"
+                print(f"      Costo Total ({num_pistas_gd_2} pistas, GD): {costo_display_gd2} (Tiempo: {tiempo_comp_gd2:.4f}s)")
                 if 'aviones_no_programados' in solucion_gd_2pistas and solucion_gd_2pistas['aviones_no_programados']:
                     print(f"      Aviones no programados ({num_pistas_gd_2} pistas, GD): {solucion_gd_2pistas['aviones_no_programados']}")
                 escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_gd, num_pistas_gd_2, 'N/A', solucion_gd_2pistas, tiempo_comp_gd2)
@@ -206,7 +215,7 @@ def main():
             print("\n  Ejecutando Greedy Estocástico:")
             algoritmo_actual_nombre_ge = "GE" 
             num_ejecuciones_ge = 10
-            k_rcl_ge = 3 # Manteniendo k_rcl=3 como en tus pruebas
+            k_rcl_ge = 3 
 
             for num_pista_actual_ge in [1, 2]:
                 print(f"    Calculando para {num_pista_actual_ge} pista(s) (GE, {num_ejecuciones_ge} ejecuciones):")
@@ -220,11 +229,11 @@ def main():
                     tiempo_comp_ge = tiempo_fin_ge - tiempo_inicio_ge
                     
                     if sol_ge_actual:
-                        costo_actual_ge = sol_ge_actual.get('costo_total', float('inf')) # Usar get para evitar error si no existe
-                        if not sol_ge_actual.get('es_factible', True): # Si es_factible es False
-                            costo_actual_ge = float('inf') # Tratar como infinito para estadísticas
-
-                        resultados_ge_iteraciones_costos.append(costo_actual_ge)
+                        costo_para_stats = float('inf') 
+                        if sol_ge_actual.get('es_factible', True):
+                            costo_para_stats = sol_ge_actual.get('costo_total', float('inf'))
+                        
+                        resultados_ge_iteraciones_costos.append(costo_para_stats)
                         escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_ge, num_pista_actual_ge, semilla_actual, sol_ge_actual, tiempo_comp_ge)
                     else:
                         print(f"      Ejecución GE {i+1} (semilla {semilla_actual}): No se obtuvo solución.")
@@ -238,6 +247,8 @@ def main():
                         print(f"        Mejor Costo (factible): {min(costos_validos_ge):.2f}")
                         print(f"        Costo Promedio (factibles): {sum(costos_validos_ge)/len(costos_validos_ge):.2f}")
                         print(f"        Peor Costo (factible): {max(costos_validos_ge):.2f}")
+                        # Para el informe, querrás todos los costos de las 10 ejecuciones:
+                        # print(f"        Todos los costos: {[f'{c:.2f}' for c in costos_validos_ge]}") # Comentado como lo tenías
                     else:
                         print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se obtuvieron soluciones factibles.")
                 else:

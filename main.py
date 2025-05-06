@@ -30,7 +30,7 @@ NUM_EJECUCIONES_GE = 10
 K_RCL_GE = 3 # Usado también como parametro_rcl_ge para la construcción en GRASP
 
 # Para GRASP + Hill Climbing
-ITERACIONES_GRASP_CONFIGS = [10, 25, 50]  # Diferentes cantidades de reinicio (iteraciones GRASP)
+ITERACIONES_GRASP_CONFIGS = [10, 50, 100]  # <--- MODIFICADO AQUÍ
 SEMILLA_INICIAL_GRASP = 0 # Semilla base para las iteraciones de GRASP
 MAX_ITER_SIN_MEJORA_HC = 20 # Límite de iteraciones sin mejora para Hill Climbing
 
@@ -224,18 +224,16 @@ def main():
 
                     # La solución de HC ya viene con 'costo_total' (base), 'costo_penalizado', 'es_factible' (estricta)
                     # y los contadores de violaciones a través de la evaluación interna que hace.
-                    # No es necesario llamar a evaluar_solucion_penalizada de nuevo externamente si HC ya lo hace.
-                    # El 'eval_actual' devuelto por HC es lo que necesitamos.
                     print(f"      Costo Base GD+HC: {solucion_gd_hc['costo_total']:.2f}, Penalizado: {solucion_gd_hc['costo_penalizado']:.2f}, Factible: {solucion_gd_hc['es_factible']} (Tiempo: {tiempo_comp_gd_hc:.4f}s)")
                     
                     detalles_gd_hc = f"IterHC:{MAX_ITER_SIN_MEJORA_HC}"
                     escribir_resumen_solucion_csv(
                         path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_gd_hc, num_pistas_actual,
                         detalles_gd_hc, 
-                        {'costo_base': solucion_gd_hc['costo_total'], # Adaptar para la función de escritura
+                        {'costo_base': solucion_gd_hc['costo_total'], 
                          'costo_penalizado': solucion_gd_hc['costo_penalizado'],
                          'es_estrictamente_factible': solucion_gd_hc['es_factible'],
-                         'violaciones_lk_count': solucion_gd_hc.get('violaciones_lk_count',0), # HC debería devolver esto
+                         'violaciones_lk_count': solucion_gd_hc.get('violaciones_lk_count',0), 
                          'violaciones_sep_count': solucion_gd_hc.get('violaciones_sep_count',0),
                          'violaciones_no_prog_count': solucion_gd_hc.get('violaciones_no_prog_count',0)
                         },
@@ -255,7 +253,7 @@ def main():
                 count_ge_factibles = 0
 
                 for i_ge in range(NUM_EJECUCIONES_GE):
-                    semilla_actual_ge = i_ge # O alguna otra estrategia de semillas
+                    semilla_actual_ge = i_ge 
                     
                     tiempo_inicio_ge = time.perf_counter()
                     sol_ge_actual = resolver_ge(
@@ -274,12 +272,11 @@ def main():
                             datos_del_caso, PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
                         )
                         
-                        # Para estadísticas internas de GE
                         if eval_ge['es_estrictamente_factible']:
                             count_ge_factibles +=1
                             sum_costos_ge_factibles['base'] += eval_ge['costo_base']
                             sum_costos_ge_factibles['penalizado'] += eval_ge['costo_penalizado']
-                            if eval_ge['costo_base'] < mejores_costos_ge['base']: # O podrías basar "mejor" en penalizado
+                            if eval_ge['costo_base'] < mejores_costos_ge['base']: 
                                 mejores_costos_ge['base'] = eval_ge['costo_base']
                                 mejores_costos_ge['penalizado'] = eval_ge['costo_penalizado']
 
@@ -289,7 +286,7 @@ def main():
                             detalles_ge, eval_ge, tiempo_comp_ge,
                             sol_ge_actual['secuencia_aterrizajes'], sol_ge_actual['aviones_no_programados']
                         )
-                    else: # No debería ocurrir
+                    else: 
                         print(f"      Ejecución GE (semilla {semilla_actual_ge}): No se obtuvo estructura de solución.")
                 
                 if count_ge_factibles > 0:
@@ -309,23 +306,22 @@ def main():
                     solucion_grasp = grasp_resolver(
                         datos_del_caso,
                         num_pistas_actual,
-                        iter_grasp_cfg, # Número de iteraciones GRASP (restarts)
+                        iter_grasp_cfg, 
                         SEMILLA_INICIAL_GRASP,
-                        K_RCL_GE, # Parámetro RCL para la construcción GE interna
+                        K_RCL_GE, 
                         MAX_ITER_SIN_MEJORA_HC,
                         PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
                     )
                     tiempo_fin_grasp = time.perf_counter()
                     tiempo_comp_grasp = tiempo_fin_grasp - tiempo_inicio_grasp
 
-                    # solucion_grasp ya contiene 'costo_total' (base), 'costo_penalizado', 'es_factible' (estricta), y violaciones
                     print(f"        Costo Base GRASP: {solucion_grasp['costo_total']:.2f}, Penalizado: {solucion_grasp['costo_penalizado']:.2f}, Factible: {solucion_grasp['es_factible']} (Tiempo: {tiempo_comp_grasp:.4f}s)")
 
                     detalles_grasp = f"IterGRASP:{iter_grasp_cfg};SemIni:{SEMILLA_INICIAL_GRASP};K_RCL:{K_RCL_GE};IterHC:{MAX_ITER_SIN_MEJORA_HC}"
                     escribir_resumen_solucion_csv(
                         path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_grasp, num_pistas_actual,
                         detalles_grasp, 
-                        {'costo_base': solucion_grasp['costo_total'], # Adaptar para la función de escritura
+                        {'costo_base': solucion_grasp['costo_total'], 
                          'costo_penalizado': solucion_grasp['costo_penalizado'],
                          'es_estrictamente_factible': solucion_grasp['es_factible'],
                          'violaciones_lk_count': solucion_grasp.get('violaciones_lk_count',0),

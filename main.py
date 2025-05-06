@@ -1,6 +1,7 @@
 # main.py
 import os 
 import csv
+import copy
 from datetime import datetime
 import time 
 
@@ -26,11 +27,11 @@ CABECERA_CSV_RESUMEN = [
 
 # --- PARÁMETROS PARA LOS ALGORITMOS ---
 # Para Greedy Estocástico (GE)
-NUM_EJECUCIONES_GE = 10
+NUM_EJECUCIONES_GE = 10 # También se usará para GE+HC
 K_RCL_GE = 3 # Usado también como parametro_rcl_ge para la construcción en GRASP
 
 # Para GRASP + Hill Climbing
-ITERACIONES_GRASP_CONFIGS = [10, 50, 100]  # <--- MODIFICADO AQUÍ
+ITERACIONES_GRASP_CONFIGS = [10, 50, 100]  # Diferentes cantidades de reinicios INTERNOS de GRASP
 SEMILLA_INICIAL_GRASP = 0 # Semilla base para las iteraciones de GRASP
 MAX_ITER_SIN_MEJORA_HC = 20 # Límite de iteraciones sin mejora para Hill Climbing
 
@@ -176,7 +177,7 @@ def main():
             
             for num_pistas_actual in [1, 2]:
                 print(f"\n  --- Para {num_pistas_actual} pista(s) ---")
-                datos_del_caso['num_pistas_original'] = num_pistas_actual # Para que evaluar_solucion sepa las pistas
+                datos_del_caso['num_pistas_original'] = num_pistas_actual 
 
                 # --- Greedy Determinista (GD) ---
                 print("\n    Ejecutando Greedy Determinista (GD):")
@@ -202,18 +203,17 @@ def main():
                         "N/A", eval_gd, tiempo_comp_gd, 
                         solucion_gd['secuencia_aterrizajes'], solucion_gd['aviones_no_programados']
                     )
-                else: # No debería ocurrir si el resolver_gd siempre devuelve un dict
+                else: 
                     print(f"      No se obtuvo estructura de solución GD para {num_pistas_actual} pista(s).")
-                    # Podrías escribir una línea de error si lo deseas
 
                 # --- Hill Climbing sobre Greedy Determinista (GD+HC) ---
-                if solucion_gd and solucion_gd['secuencia_aterrizajes']: # Solo si GD produjo algo
+                if solucion_gd and solucion_gd.get('secuencia_aterrizajes'): 
                     print("\n    Ejecutando Hill Climbing sobre GD (GD+HC):")
                     algoritmo_nombre_gd_hc = "GD_HC"
                     
                     tiempo_inicio_gd_hc = time.perf_counter()
                     solucion_gd_hc = hill_climbing_mejor_mejora(
-                        solucion_gd, # Pasamos la solución completa del GD
+                        solucion_gd, 
                         datos_del_caso,
                         num_pistas_actual,
                         MAX_ITER_SIN_MEJORA_HC,
@@ -222,8 +222,6 @@ def main():
                     tiempo_fin_gd_hc = time.perf_counter()
                     tiempo_comp_gd_hc = tiempo_fin_gd_hc - tiempo_inicio_gd_hc
 
-                    # La solución de HC ya viene con 'costo_total' (base), 'costo_penalizado', 'es_factible' (estricta)
-                    # y los contadores de violaciones a través de la evaluación interna que hace.
                     print(f"      Costo Base GD+HC: {solucion_gd_hc['costo_total']:.2f}, Penalizado: {solucion_gd_hc['costo_penalizado']:.2f}, Factible: {solucion_gd_hc['es_factible']} (Tiempo: {tiempo_comp_gd_hc:.4f}s)")
                     
                     detalles_gd_hc = f"IterHC:{MAX_ITER_SIN_MEJORA_HC}"
@@ -238,70 +236,127 @@ def main():
                          'violaciones_no_prog_count': solucion_gd_hc.get('violaciones_no_prog_count',0)
                         },
                         tiempo_comp_gd_hc,
-                        solucion_gd_hc['secuencia_aterrizajes'], solucion_gd_hc['aviones_no_programados']
+                        solucion_gd_hc['secuencia_aterrizajes'], solucion_gd_hc.get('aviones_no_programados', [])
                     )
                 else:
                     print("      Skipping GD+HC porque GD no generó una secuencia válida.")
 
-
                 # --- Greedy Estocástico (GE) ---
-                print("\n    Ejecutando Greedy Estocástico (GE):")
-                algoritmo_nombre_ge = "GE" 
+                print("\n    Ejecutando Greedy Estocástico (GE) - 10 ejecuciones:")
+                algoritmo_nombre_ge_solo = "GE_Solo" 
                 
-                mejores_costos_ge = {'base': float('inf'), 'penalizado': float('inf')}
-                sum_costos_ge_factibles = {'base': 0, 'penalizado': 0}
-                count_ge_factibles = 0
+                soluciones_ge_originales = [] # Para guardar las 10 soluciones de GE
+                mejores_costos_ge_solo = {'base': float('inf'), 'penalizado': float('inf')}
+                sum_costos_ge_solo_factibles = {'base': 0, 'penalizado': 0}
+                count_ge_solo_factibles = 0
 
                 for i_ge in range(NUM_EJECUCIONES_GE):
                     semilla_actual_ge = i_ge 
                     
-                    tiempo_inicio_ge = time.perf_counter()
+                    tiempo_inicio_ge_solo = time.perf_counter()
                     sol_ge_actual = resolver_ge(
                         datos_del_caso, 
                         num_pistas=num_pistas_actual, 
                         semilla=semilla_actual_ge, 
                         parametro_rcl_alpha=K_RCL_GE
                     ) 
-                    tiempo_fin_ge = time.perf_counter()
-                    tiempo_comp_ge = tiempo_fin_ge - tiempo_inicio_ge
+                    tiempo_fin_ge_solo = time.perf_counter()
+                    tiempo_comp_ge_solo = tiempo_fin_ge_solo - tiempo_inicio_ge_solo
                     
                     if sol_ge_actual:
-                        eval_ge = evaluar_solucion_penalizada(
+                        soluciones_ge_originales.append(copy.deepcopy(sol_ge_actual)) # Guardar para GE+HC
+                        eval_ge_solo = evaluar_solucion_penalizada(
                             sol_ge_actual['secuencia_aterrizajes'], 
                             sol_ge_actual['aviones_no_programados'], 
                             datos_del_caso, PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
                         )
                         
-                        if eval_ge['es_estrictamente_factible']:
-                            count_ge_factibles +=1
-                            sum_costos_ge_factibles['base'] += eval_ge['costo_base']
-                            sum_costos_ge_factibles['penalizado'] += eval_ge['costo_penalizado']
-                            if eval_ge['costo_base'] < mejores_costos_ge['base']: 
-                                mejores_costos_ge['base'] = eval_ge['costo_base']
-                                mejores_costos_ge['penalizado'] = eval_ge['costo_penalizado']
+                        if eval_ge_solo['es_estrictamente_factible']:
+                            count_ge_solo_factibles +=1
+                            sum_costos_ge_solo_factibles['base'] += eval_ge_solo['costo_base']
+                            if eval_ge_solo['costo_base'] < mejores_costos_ge_solo['base']: 
+                                mejores_costos_ge_solo['base'] = eval_ge_solo['costo_base']
+                                mejores_costos_ge_solo['penalizado'] = eval_ge_solo['costo_penalizado']
 
-                        detalles_ge = f"Semilla:{semilla_actual_ge};K_RCL:{K_RCL_GE}"
+                        detalles_ge_solo = f"Semilla:{semilla_actual_ge};K_RCL:{K_RCL_GE}"
                         escribir_resumen_solucion_csv(
-                            path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_ge, num_pistas_actual,
-                            detalles_ge, eval_ge, tiempo_comp_ge,
+                            path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_ge_solo, num_pistas_actual,
+                            detalles_ge_solo, eval_ge_solo, tiempo_comp_ge_solo,
                             sol_ge_actual['secuencia_aterrizajes'], sol_ge_actual['aviones_no_programados']
                         )
                     else: 
-                        print(f"      Ejecución GE (semilla {semilla_actual_ge}): No se obtuvo estructura de solución.")
+                        print(f"      Ejecución GE_Solo (semilla {semilla_actual_ge}): No se obtuvo estructura de solución.")
                 
-                if count_ge_factibles > 0:
-                    print(f"      Resultados GE ({num_pistas_actual} pista(s), {NUM_EJECUCIONES_GE} ejec, {count_ge_factibles} factibles):")
-                    print(f"        Mejor Costo Base (factible): {mejores_costos_ge['base']:.2f} (Penalizado: {mejores_costos_ge['penalizado']:.2f})")
-                    print(f"        Costo Base Promedio (factibles): {sum_costos_ge_factibles['base']/count_ge_factibles:.2f}")
+                if count_ge_solo_factibles > 0:
+                    print(f"      Resultados GE_Solo ({num_pistas_actual} pista(s), {NUM_EJECUCIONES_GE} ejec, {count_ge_solo_factibles} factibles):")
+                    print(f"        Mejor Costo Base (factible): {mejores_costos_ge_solo['base']:.2f} (Penalizado: {mejores_costos_ge_solo['penalizado']:.2f})")
+                    print(f"        Costo Base Promedio (factibles): {sum_costos_ge_solo_factibles['base']/count_ge_solo_factibles:.2f}")
                 else:
-                    print(f"      Resultados GE ({num_pistas_actual} pista(s)): No se obtuvieron soluciones estrictamente factibles en {NUM_EJECUCIONES_GE} ejecuciones.")
+                    print(f"      Resultados GE_Solo ({num_pistas_actual} pista(s)): No se obtuvieron soluciones estrictamente factibles en {NUM_EJECUCIONES_GE} ejecuciones.")
 
-                # --- GRASP + Hill Climbing (Estocástico) ---
-                print("\n    Ejecutando GRASP + Hill Climbing (GRASP_HC_Estoc):")
+                # --- GE + Hill Climbing (GE+HC) ---
+                print("\n    Ejecutando GE + Hill Climbing (GE+HC) - sobre las 10 ejecuciones de GE:")
+                algoritmo_nombre_ge_hc = "GE_HC"
+                
+                mejores_costos_ge_hc = {'base': float('inf'), 'penalizado': float('inf')}
+                sum_costos_ge_hc_factibles = {'base': 0, 'penalizado': 0}
+                count_ge_hc_factibles = 0
+
+                for i_ge_hc, sol_ge_inicial in enumerate(soluciones_ge_originales):
+                    semilla_origen_ge = i_ge_hc # La semilla con la que se generó sol_ge_inicial
+                    # print(f"      Aplicando HC a solución de GE generada con semilla {semilla_origen_ge}")
+                    
+                    if not sol_ge_inicial or not sol_ge_inicial.get('secuencia_aterrizajes'):
+                        # print(f"      Skipping HC para GE con semilla {semilla_origen_ge} porque no generó una secuencia válida.")
+                        continue
+
+                    tiempo_inicio_ge_hc = time.perf_counter()
+                    solucion_ge_hc = hill_climbing_mejor_mejora(
+                        sol_ge_inicial,
+                        datos_del_caso,
+                        num_pistas_actual,
+                        MAX_ITER_SIN_MEJORA_HC,
+                        PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
+                    )
+                    tiempo_fin_ge_hc = time.perf_counter()
+                    tiempo_comp_ge_hc = tiempo_fin_ge_hc - tiempo_inicio_ge_hc
+
+                    if solucion_ge_hc['es_factible']:
+                        count_ge_hc_factibles +=1
+                        sum_costos_ge_hc_factibles['base'] += solucion_ge_hc['costo_total']
+                        if solucion_ge_hc['costo_total'] < mejores_costos_ge_hc['base']:
+                            mejores_costos_ge_hc['base'] = solucion_ge_hc['costo_total']
+                            mejores_costos_ge_hc['penalizado'] = solucion_ge_hc['costo_penalizado']
+                    
+                    detalles_ge_hc = f"SemGE_Origen:{semilla_origen_ge};K_RCL:{K_RCL_GE};IterHC:{MAX_ITER_SIN_MEJORA_HC}"
+                    escribir_resumen_solucion_csv(
+                        path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_ge_hc, num_pistas_actual,
+                        detalles_ge_hc,
+                        {'costo_base': solucion_ge_hc['costo_total'], 
+                         'costo_penalizado': solucion_ge_hc['costo_penalizado'],
+                         'es_estrictamente_factible': solucion_ge_hc['es_factible'],
+                         'violaciones_lk_count': solucion_ge_hc.get('violaciones_lk_count',0),
+                         'violaciones_sep_count': solucion_ge_hc.get('violaciones_sep_count',0),
+                         'violaciones_no_prog_count': solucion_ge_hc.get('violaciones_no_prog_count',0)
+                        },
+                        tiempo_comp_ge_hc,
+                        solucion_ge_hc['secuencia_aterrizajes'], solucion_ge_hc.get('aviones_no_programados', [])
+                    )
+                
+                if count_ge_hc_factibles > 0:
+                    print(f"      Resultados GE+HC ({num_pistas_actual} pista(s), {len(soluciones_ge_originales)} inicios, {count_ge_hc_factibles} factibles post-HC):")
+                    print(f"        Mejor Costo Base (factible): {mejores_costos_ge_hc['base']:.2f} (Penalizado: {mejores_costos_ge_hc['penalizado']:.2f})")
+                    print(f"        Costo Base Promedio (factibles): {sum_costos_ge_hc_factibles['base']/count_ge_hc_factibles:.2f}")
+                else:
+                    print(f"      Resultados GE+HC ({num_pistas_actual} pista(s)): No se obtuvieron soluciones estrictamente factibles tras aplicar HC a las {len(soluciones_ge_originales)} soluciones de GE.")
+
+
+                # --- GRASP + Hill Climbing (con Restarts Internos) ---
+                print("\n    Ejecutando GRASP + Hill Climbing (GRASP_HC_Estoc - con restarts internos):")
                 algoritmo_nombre_grasp = "GRASP_HC_Estoc"
 
                 for iter_grasp_cfg in ITERACIONES_GRASP_CONFIGS:
-                    print(f"      Config GRASP: {iter_grasp_cfg} iteraciones (restarts)")
+                    print(f"      Config GRASP: {iter_grasp_cfg} iteraciones/restarts internos")
                     tiempo_inicio_grasp = time.perf_counter()
                     solucion_grasp = grasp_resolver(
                         datos_del_caso,
@@ -329,7 +384,7 @@ def main():
                          'violaciones_no_prog_count': solucion_grasp.get('violaciones_no_prog_count',0)
                         },
                         tiempo_comp_grasp,
-                        solucion_grasp['secuencia_aterrizajes'], solucion_grasp['aviones_no_programados']
+                        solucion_grasp['secuencia_aterrizajes'], solucion_grasp.get('aviones_no_programados', [])
                     )
             
             # --- Comentarios originales de verificación de datos del caso ---

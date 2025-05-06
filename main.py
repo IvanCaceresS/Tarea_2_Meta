@@ -1,20 +1,15 @@
-# main.py
 import os 
-import csv # <--- IMPORTAR CSV
-from datetime import datetime # Para nombre de archivo único
-import time # <--- IMPORTADO PARA MEDIR TIEMPO
+import csv
+from datetime import datetime
+import time 
 
-# Asegúrate que estas rutas sean correctas para tu estructura de carpetas
 from scripts.lector_cases import read_case 
 from scripts.greedy_deterministic import resolver as resolver_gd 
 from scripts.greedy_stochastic import resolver as resolver_ge
 # from scripts.verificador import verificar_solucion # Mantengo esto comentado como lo tienes
 
-# --- CONFIGURACIÓN PARA CSV RESUMIDO ---
 CARPETA_RESULTADOS = "results" 
 NOMBRE_BASE_CSV_RESUMEN = f"resumen_soluciones_aterrizajes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-# El path completo se construirá después de asegurar que la carpeta exista
-# PATH_COMPLETO_CSV_RESUMEN se definirá en main()
 
 CABECERA_CSV_RESUMEN = [
     'NombreCaso', 'Algoritmo', 'NumPistas', 'SemillaGE', 
@@ -22,20 +17,28 @@ CABECERA_CSV_RESUMEN = [
     'AvionesNoProgramados'
 ]
 
-# --- FUNCIÓN PARA ESCRIBIR EN CSV RESUMIDO (NUEVA) ---
 def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, tiempo_comp):
-    """
-    Escribe una línea de resumen de la solución en el archivo CSV especificado.
-    """
-    if not solucion: # Si el algoritmo no pudo generar una solución
-        print(f"      ADVERTENCIA CSV (Resumen): No hay solución para {nombre_caso}, {algoritmo_nombre}, {num_pistas}p, semilla {semilla_ge}.")
-        fila_datos = [
-            nombre_caso, algoritmo_nombre, num_pistas, 
-            semilla_ge if algoritmo_nombre == 'GE' else 'N/A', 
-            'ERROR_NO_SOLUCION', f"{tiempo_comp:.4f}", '', ''
-        ]
-    else:
-        costo_total_solucion = solucion.get('costo_total', float('inf')) 
+    if not solucion:
+        print(f"      ADVERTENCIA CSV (Resumen): No hay datos de solución para {nombre_caso}, {algoritmo_nombre}, {num_pistas}p, semilla {semilla_ge}.")
+        # Escribir una fila indicando que no hubo solución del algoritmo (diferente a infactible)
+        costo_display = "NO_SOLUCION"
+        orden_ids_str = ""
+        aviones_no_programados_str = ""
+    # NUEVA LÓGICA PARA MANEJAR 'es_factible'
+    elif not solucion.get('es_factible', True): # Si 'es_factible' es False
+        costo_display = "INFACTIBLE" # Mostrar "INFACTIBLE" en lugar del costo numérico
+        # El costo numérico original (de los programados) podría guardarse si se quisiera, pero "INFACTIBLE" es más claro.
+        # solucion['costo_total'] podría seguir teniendo la suma de los programados, o la penalización si la mantienes.
+        # Para el CSV resumido, mostrar "INFACTIBLE" es el objetivo.
+        secuencia_aterrizajes = solucion.get('secuencia_aterrizajes', [])
+        orden_ids = [aterrizaje['avion_id'] for aterrizaje in secuencia_aterrizajes]
+        orden_ids_str = "-".join(map(str, orden_ids)) 
+
+        aviones_no_programados_lista = solucion.get('aviones_no_programados', [])
+        aviones_no_programados_str = "-".join(map(str, aviones_no_programados_lista)) if aviones_no_programados_lista else ""
+    else: # Solución es factible
+        costo_total_solucion = solucion.get('costo_total', float('inf'))
+        costo_display = f"{costo_total_solucion:.2f}"
         
         secuencia_aterrizajes = solucion.get('secuencia_aterrizajes', [])
         orden_ids = [aterrizaje['avion_id'] for aterrizaje in secuencia_aterrizajes]
@@ -44,16 +47,16 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
         aviones_no_programados_lista = solucion.get('aviones_no_programados', [])
         aviones_no_programados_str = "-".join(map(str, aviones_no_programados_lista)) if aviones_no_programados_lista else ""
 
-        fila_datos = [
-            nombre_caso,
-            algoritmo_nombre,
-            num_pistas,
-            semilla_ge if algoritmo_nombre == 'GE' else 'N/A',
-            f"{costo_total_solucion:.2f}",
-            f"{tiempo_comp:.4f}", 
-            orden_ids_str,
-            aviones_no_programados_str
-        ]
+    fila_datos = [
+        nombre_caso,
+        algoritmo_nombre,
+        num_pistas,
+        semilla_ge if algoritmo_nombre == 'GE' else 'N/A',
+        costo_display, # Usar el costo_display (numérico o "INFACTIBLE")
+        f"{tiempo_comp:.4f}", 
+        orden_ids_str,
+        aviones_no_programados_str
+    ]
 
     escribir_cabecera = not os.path.exists(path_completo_csv)
     
@@ -65,7 +68,6 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
             writer.writerow(fila_datos)
     except IOError as e:
         print(f"      ERROR al escribir en CSV (Resumen): {e}")
-
 
 # --- (La función original escribir_resultados_csv detallada permanece comentada) ---
 # NOMBRE_ARCHIVO_CSV_DETALLADO = f"resultados_aterrizajes_DETALLADO_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -204,7 +206,7 @@ def main():
             print("\n  Ejecutando Greedy Estocástico:")
             algoritmo_actual_nombre_ge = "GE" 
             num_ejecuciones_ge = 10
-            k_rcl_ge = 3 
+            k_rcl_ge = 3 # Manteniendo k_rcl=3 como en tus pruebas
 
             for num_pista_actual_ge in [1, 2]:
                 print(f"    Calculando para {num_pista_actual_ge} pista(s) (GE, {num_ejecuciones_ge} ejecuciones):")
@@ -218,7 +220,10 @@ def main():
                     tiempo_comp_ge = tiempo_fin_ge - tiempo_inicio_ge
                     
                     if sol_ge_actual:
-                        costo_actual_ge = sol_ge_actual['costo_total']
+                        costo_actual_ge = sol_ge_actual.get('costo_total', float('inf')) # Usar get para evitar error si no existe
+                        if not sol_ge_actual.get('es_factible', True): # Si es_factible es False
+                            costo_actual_ge = float('inf') # Tratar como infinito para estadísticas
+
                         resultados_ge_iteraciones_costos.append(costo_actual_ge)
                         escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_ge, num_pista_actual_ge, semilla_actual, sol_ge_actual, tiempo_comp_ge)
                     else:
@@ -230,15 +235,13 @@ def main():
                     costos_validos_ge = [c for c in resultados_ge_iteraciones_costos if c != float('inf')]
                     if costos_validos_ge:
                         print(f"      Resultados GE ({num_pista_actual_ge} pista(s)):")
-                        print(f"        Mejor Costo: {min(costos_validos_ge):.2f}")
-                        print(f"        Costo Promedio: {sum(costos_validos_ge)/len(costos_validos_ge):.2f}")
-                        print(f"        Peor Costo: {max(costos_validos_ge):.2f}")
-                        # Para el informe, querrás todos los costos de las 10 ejecuciones:
-                        # print(f"        Todos los costos: {[f'{c:.2f}' for c in costos_validos_ge]}") # Comentado como lo tenías
+                        print(f"        Mejor Costo (factible): {min(costos_validos_ge):.2f}")
+                        print(f"        Costo Promedio (factibles): {sum(costos_validos_ge)/len(costos_validos_ge):.2f}")
+                        print(f"        Peor Costo (factible): {max(costos_validos_ge):.2f}")
                     else:
-                        print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se obtuvieron soluciones válidas.")
+                        print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se obtuvieron soluciones factibles.")
                 else:
-                    print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se realizaron ejecuciones.")
+                     print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se realizaron ejecuciones.")
             
             # # Verificar consistencia general (ya lo hace tu lector, pero no está de más) # Comentado como lo tenías
             # # if len(aviones) == num_aviones and len(tiempos_separacion) == num_aviones: # Comentado como lo tenías

@@ -35,9 +35,9 @@ def resolver(datos_del_caso, num_pistas):
     num_aviones_total = datos_del_caso['num_aviones']
 
     # --- Criterio Greedy: Ordenar aviones ---
-    # Ordenar por E_k, luego P_k, luego id para desempates.
+    # Ordenar por P_k, luego E_k, luego id para desempates. # MODIFICADO SEGÚN TU ÚLTIMO CAMBIO
     # Esto define el orden en que intentaremos programar los aviones.
-    aviones_ordenados = sorted(aviones, key=lambda x: (x['E'], x['P'], x['id']))
+    aviones_ordenados = sorted(aviones, key=lambda x: (x['P'], x['E'], x['id']))
 
     solucion = {
         'secuencia_aterrizajes': [],
@@ -106,9 +106,16 @@ def resolver(datos_del_caso, num_pistas):
                 mejor_opcion_para_avion_actual['tiempo_aterrizaje_final'] = tiempo_aterrizaje_final_pista
                 mejor_opcion_para_avion_actual['costo_penalizacion'] = costo_actual
                 mejor_opcion_para_avion_actual['valida'] = True
-            # Desempate: si el costo es igual, podríamos preferir la pista con índice menor,
-            # o la que permita aterrizar antes (ya está implícito si P_k es el target).
-            # Por ahora, el primer "mejor" encontrado se mantiene.
+            # INICIO: Lógica de desempate determinista añadida
+            elif costo_actual == mejor_opcion_para_avion_actual['costo_penalizacion']:
+                # Si el costo es el mismo, preferir la pista con el índice menor
+                # Esto hace que la elección sea más consistente si hay múltiples pistas óptimas.
+                if mejor_opcion_para_avion_actual['valida'] and pista_idx < mejor_opcion_para_avion_actual['pista_asignada']:
+                    mejor_opcion_para_avion_actual['pista_asignada'] = pista_idx
+                    mejor_opcion_para_avion_actual['tiempo_aterrizaje_final'] = tiempo_aterrizaje_final_pista
+                    # El costo de penalización es el mismo, no es necesario actualizarlo.
+            # FIN: Lógica de desempate determinista añadida
+
 
         # Fin del bucle de pistas para avion_actual
 
@@ -136,10 +143,20 @@ def resolver(datos_del_caso, num_pistas):
             solucion['aviones_no_programados'].append(avion_id_actual)
 
     # Verificar si todos los aviones fueron programados
+    # INICIO: Verificación más robusta de aviones no programados
     if len(aviones_programados_ids) != num_aviones_total:
-        print(f"Advertencia GD: No todos los aviones pudieron ser programados. Faltantes: {solucion['aviones_no_programados']}")
-        # Esto podría indicar que el caso es muy restrictivo o el greedy no es suficientemente bueno.
-        # Para la tarea, se espera que los casos sean factibles.
+        # Reconstruir la lista de no programados explícitamente si es necesario
+        # (la lógica anterior ya debería llenarla, pero esto es una doble comprobación)
+        aviones_faltantes_check = [avion['id'] for avion in aviones_originales if avion['id'] not in aviones_programados_ids] # Usa aviones_originales o aviones (deepcopy)
+        
+        if not solucion['aviones_no_programados'] and aviones_faltantes_check:
+             solucion['aviones_no_programados'] = aviones_faltantes_check
+        
+        if solucion['aviones_no_programados']: # Solo imprimir si realmente hay aviones no programados
+            print(f"Advertencia GD: No todos los aviones pudieron ser programados. Faltantes: {solucion['aviones_no_programados']}")
+    # FIN: Verificación más robusta de aviones no programados
+    # Esto podría indicar que el caso es muy restrictivo o el greedy no es suficientemente bueno.
+    # Para la tarea, se espera que los casos sean factibles.
 
     # Ordenar la secuencia final por tiempo de aterrizaje para mejor legibilidad (opcional)
     solucion['secuencia_aterrizajes'].sort(key=lambda x: x['tiempo'])
@@ -153,12 +170,15 @@ if __name__ == '__main__':
     import sys
     import os
     # Añadir la carpeta raíz del proyecto al path para importar lector_cases
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    # Esto asume que greedy_determinista.py está en 'scripts/' y 'scripts/' está al mismo nivel que 'cases/'
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) 
     
-    from scripts.lector_cases import read_case # o la ruta correcta
+    # Ajusta la importación según tu estructura final, si 'lector_cases.py' está en 'scripts':
+    from scripts.lector_cases import read_case 
 
     # --- Prueba con case1.txt y 1 pista ---
-    ruta_case1 = os.path.join('..', 'cases', 'case1.txt') # Ajustar ruta si es necesario
+    # Ajustar ruta si es necesario. Si 'greedy_determinista.py' está en 'scripts/', y 'cases' está un nivel arriba:
+    ruta_case1 = os.path.join(os.path.dirname(__file__), '..', 'cases', 'case1.txt') 
     datos_case1 = read_case(ruta_case1)
     if datos_case1:
         print("\n--- Greedy Determinista: case1.txt, 1 Pista ---")

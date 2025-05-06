@@ -180,7 +180,7 @@ if __name__ == '__main__':
         # Parámetros para el greedy estocástico
         num_ejecuciones = 10
         # alpha_rcl = 0.2 # Tomar el 20% de los mejores candidatos para la RCL
-        k_rcl = 5       # Tomar los k=5 mejores candidatos para la RCL
+        k_rcl = 3      # Tomar los k=3 mejores candidatos para la RCL
 
         for num_pista_actual in [1, 2]:
             print(f"\n  Resultados para {num_pista_actual} pista(s):")

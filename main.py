@@ -8,6 +8,7 @@ import time
 from scripts.lector_cases import read_case 
 from scripts.greedy_deterministic import resolver as resolver_gd 
 from scripts.greedy_stochastic import resolver as resolver_ge
+from scripts.grasp_hc import grasp_resolver, hill_climbing_mejor_mejora, evaluar_solucion_penalizada
 # from scripts.verificador import verificar_solucion # Mantengo esto comentado como lo tienes
 
 # --- CONFIGURACIÓN PARA CSV RESUMIDO ---
@@ -17,48 +18,54 @@ NOMBRE_BASE_CSV_RESUMEN = f"resumen_soluciones_aterrizajes_{datetime.now().strft
 # PATH_COMPLETO_CSV_RESUMEN se definirá en main()
 
 CABECERA_CSV_RESUMEN = [
-    'NombreCaso', 'Algoritmo', 'NumPistas', 'SemillaGE', 
-    'CostoTotalSolucion', 'TiempoComputacional_seg', 'OrdenAterrizajeIDs',
-    'AvionesNoProgramados'
+    'NombreCaso', 'Algoritmo', 'NumPistas', 'DetallesParametros', 
+    'CostoBaseSolucion', 'CostoPenalizadoSolucion', 'EsEstrictamenteFactible',
+    'ViolacionesLk', 'ViolacionesSep', 'ViolacionesNoProg',
+    'TiempoComputacional_seg', 'OrdenAterrizajeIDs', 'AvionesNoProgramados'
 ]
 
-# --- FUNCIÓN PARA ESCRIBIR EN CSV RESUMIDO (MODIFICADA PARA USAR CARPETA) ---
-def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, tiempo_comp):
-    """
-    Escribe una línea de resumen de la solución en el archivo CSV especificado.
-    """
-    if not solucion: # Si el algoritmo no pudo generar una solución
-        print(f"      ADVERTENCIA CSV (Resumen): No hay datos de solución para {nombre_caso}, {algoritmo_nombre}, {num_pistas}p, semilla {semilla_ge}.")
-        # Escribir una fila indicando que no hubo solución del algoritmo (diferente a infactible)
-        costo_display = "NO_SOLUCION"
-        orden_ids_str = ""
-        aviones_no_programados_str = ""
-    # NUEVA LÓGICA PARA MANEJAR 'es_factible'
-    elif not solucion.get('es_factible', True): # Si 'es_factible' es False o no existe (asumir factible si no existe)
-        costo_display = "INFACTIBLE" 
-        secuencia_aterrizajes = solucion.get('secuencia_aterrizajes', [])
-        orden_ids = [aterrizaje['avion_id'] for aterrizaje in secuencia_aterrizajes]
-        orden_ids_str = "-".join(map(str, orden_ids)) 
+# --- PARÁMETROS PARA LOS ALGORITMOS ---
+# Para Greedy Estocástico (GE)
+NUM_EJECUCIONES_GE = 10
+K_RCL_GE = 3 # Usado también como parametro_rcl_ge para la construcción en GRASP
 
-        aviones_no_programados_lista = solucion.get('aviones_no_programados', [])
-        aviones_no_programados_str = "-".join(map(str, aviones_no_programados_lista)) if aviones_no_programados_lista else ""
-    else: # Solución es factible
-        costo_total_solucion = solucion.get('costo_total', float('inf'))
-        costo_display = f"{costo_total_solucion:.2f}"
-        
-        secuencia_aterrizajes = solucion.get('secuencia_aterrizajes', [])
-        orden_ids = [aterrizaje['avion_id'] for aterrizaje in secuencia_aterrizajes]
-        orden_ids_str = "-".join(map(str, orden_ids)) 
+# Para GRASP + Hill Climbing
+ITERACIONES_GRASP_CONFIGS = [10, 25, 50]  # Diferentes cantidades de reinicio (iteraciones GRASP)
+SEMILLA_INICIAL_GRASP = 0 # Semilla base para las iteraciones de GRASP
+MAX_ITER_SIN_MEJORA_HC = 20 # Límite de iteraciones sin mejora para Hill Climbing
 
-        aviones_no_programados_lista = solucion.get('aviones_no_programados', [])
-        aviones_no_programados_str = "-".join(map(str, aviones_no_programados_lista)) if aviones_no_programados_lista else ""
+# Penalizaciones (ajustar según experimentación)
+PENALIDAD_LK = 1000.0
+PENALIDAD_SEP = 5000.0
+PENALIDAD_NO_PROG = 100000.0
+
+
+def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nombre, num_pistas, detalles_parametros,
+                                  eval_solucion, tiempo_comp, secuencia_aterrizajes_lista, aviones_no_programados_lista_ids):
+    """
+    Escribe una línea de resumen de la solución en el archivo CSV especificado,
+    utilizando la evaluación precalculada.
+    """
+    costo_base_str = f"{eval_solucion['costo_base']:.2f}"
+    costo_penalizado_str = f"{eval_solucion['costo_penalizado']:.2f}"
+    es_factible_str = str(eval_solucion['es_estrictamente_factible'])
+    
+    orden_ids = [aterrizaje['avion_id'] for aterrizaje in secuencia_aterrizajes_lista]
+    orden_ids_str = "-".join(map(str, orden_ids)) 
+
+    aviones_no_programados_str = "-".join(map(str, aviones_no_programados_lista_ids)) if aviones_no_programados_lista_ids else ""
 
     fila_datos = [
         nombre_caso,
         algoritmo_nombre,
         num_pistas,
-        semilla_ge if algoritmo_nombre == 'GE' else 'N/A',
-        costo_display, 
+        detalles_parametros,
+        costo_base_str,
+        costo_penalizado_str,
+        es_factible_str,
+        eval_solucion['violaciones_lk_count'],
+        eval_solucion['violaciones_sep_count'],
+        eval_solucion['violaciones_no_prog_count'],
         f"{tiempo_comp:.4f}", 
         orden_ids_str,
         aviones_no_programados_str
@@ -84,7 +91,7 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
 #     'PistaAsignada', 'CostoIndividualAvion',
 #     'Ek_Avion', 'Pk_Avion', 'Lk_Avion'
 # ]
-# def escribir_resultados_csv(nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, datos_entrada_aviones): # Nombre original de tu función detallada
+# def escribir_resultados_csv_detallado(nombre_caso, algoritmo_nombre, num_pistas, semilla_ge, solucion, datos_entrada_aviones): # Nombre original de tu función detallada
 #     """
 #     Escribe los detalles de una solución en el archivo CSV.
 #     """
@@ -92,7 +99,7 @@ def escribir_resumen_solucion_csv(path_completo_csv, nombre_caso, algoritmo_nomb
 #         print(f"           ADVERTENCIA CSV: No hay secuencia de aterrizajes para {nombre_caso}, {algoritmo_nombre}, {num_pistas}p, semilla {semilla_ge}.")
 #         return
 
-#     costo_total_solucion = solucion['costo_total']
+#     costo_total_solucion = solucion['costo_total'] # Esto sería el costo base
     
 #     # Crear un diccionario para acceder fácilmente a E_k, P_k, L_k por id
 #     info_aviones_dict = {avion['id']: avion for avion in datos_entrada_aviones}
@@ -164,127 +171,198 @@ def main():
         datos_del_caso = read_case(ruta_archivo_caso)
 
         if datos_del_caso:
-            num_aviones = datos_del_caso['num_aviones']
-            # aviones = datos_del_caso['aviones'] # Comentado como lo tenías
-            # tiempos_separacion = datos_del_caso['tiempos_separacion'] # Comentado como lo tenías
-
-            print(f"Número de aviones: {num_aviones}")
+            num_aviones_total_caso = datos_del_caso['num_aviones']
+            print(f"Número de aviones: {num_aviones_total_caso}")
             
-            # --- Greedy Determinista ---
-            print("\n  Ejecutando Greedy Determinista:")
-            algoritmo_actual_nombre_gd = "GD" 
-            
-            # Para 1 pista (GD)
-            num_pistas_gd_1 = 1
-            print(f"    Calculando para {num_pistas_gd_1} pista (GD):")
-            tiempo_inicio_gd1 = time.perf_counter()
-            solucion_gd_1pista = resolver_gd(datos_del_caso, num_pistas=num_pistas_gd_1)
-            tiempo_fin_gd1 = time.perf_counter()
-            tiempo_comp_gd1 = tiempo_fin_gd1 - tiempo_inicio_gd1
-            
-            if solucion_gd_1pista:
-                costo_display_gd1 = f"{solucion_gd_1pista['costo_total']:.2f}" if solucion_gd_1pista.get('es_factible', True) else "INFACTIBLE"
-                print(f"      Costo Total ({num_pistas_gd_1} pista, GD): {costo_display_gd1} (Tiempo: {tiempo_comp_gd1:.4f}s)")
-                if 'aviones_no_programados' in solucion_gd_1pista and solucion_gd_1pista['aviones_no_programados']:
-                    print(f"      Aviones no programados ({num_pistas_gd_1} pista, GD): {solucion_gd_1pista['aviones_no_programados']}")
-                escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_gd, num_pistas_gd_1, 'N/A', solucion_gd_1pista, tiempo_comp_gd1)
-            else:
-                print(f"      No se obtuvo solución GD para {num_pistas_gd_1} pista.")
-                escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_gd, num_pistas_gd_1, 'N/A', None, tiempo_comp_gd1)
+            for num_pistas_actual in [1, 2]:
+                print(f"\n  --- Para {num_pistas_actual} pista(s) ---")
+                datos_del_caso['num_pistas_original'] = num_pistas_actual # Para que evaluar_solucion sepa las pistas
 
-
-            # Para 2 pistas (GD)
-            num_pistas_gd_2 = 2
-            print(f"    Calculando para {num_pistas_gd_2} pistas (GD):")
-            tiempo_inicio_gd2 = time.perf_counter()
-            solucion_gd_2pistas = resolver_gd(datos_del_caso, num_pistas=num_pistas_gd_2)
-            tiempo_fin_gd2 = time.perf_counter()
-            tiempo_comp_gd2 = tiempo_fin_gd2 - tiempo_inicio_gd2
-            
-            if solucion_gd_2pistas:
-                costo_display_gd2 = f"{solucion_gd_2pistas['costo_total']:.2f}" if solucion_gd_2pistas.get('es_factible', True) else "INFACTIBLE"
-                print(f"      Costo Total ({num_pistas_gd_2} pistas, GD): {costo_display_gd2} (Tiempo: {tiempo_comp_gd2:.4f}s)")
-                if 'aviones_no_programados' in solucion_gd_2pistas and solucion_gd_2pistas['aviones_no_programados']:
-                    print(f"      Aviones no programados ({num_pistas_gd_2} pistas, GD): {solucion_gd_2pistas['aviones_no_programados']}")
-                escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_gd, num_pistas_gd_2, 'N/A', solucion_gd_2pistas, tiempo_comp_gd2)
-            else:
-                print(f"      No se obtuvo solución GD para {num_pistas_gd_2} pistas.")
-                escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_gd, num_pistas_gd_2, 'N/A', None, tiempo_comp_gd2)
-
-            # --- Greedy Estocástico ---
-            print("\n  Ejecutando Greedy Estocástico:")
-            algoritmo_actual_nombre_ge = "GE" 
-            num_ejecuciones_ge = 10
-            k_rcl_ge = 3 
-
-            for num_pista_actual_ge in [1, 2]:
-                print(f"    Calculando para {num_pista_actual_ge} pista(s) (GE, {num_ejecuciones_ge} ejecuciones):")
-                resultados_ge_iteraciones_costos = []
+                # --- Greedy Determinista (GD) ---
+                print("\n    Ejecutando Greedy Determinista (GD):")
+                algoritmo_nombre_gd = "GD" 
                 
-                for i in range(num_ejecuciones_ge):
-                    semilla_actual = i 
+                tiempo_inicio_gd = time.perf_counter()
+                solucion_gd = resolver_gd(datos_del_caso, num_pistas=num_pistas_actual)
+                tiempo_fin_gd = time.perf_counter()
+                tiempo_comp_gd = tiempo_fin_gd - tiempo_inicio_gd
+                
+                if solucion_gd:
+                    eval_gd = evaluar_solucion_penalizada(
+                        solucion_gd['secuencia_aterrizajes'], 
+                        solucion_gd['aviones_no_programados'], 
+                        datos_del_caso, PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
+                    )
+                    print(f"      Costo Base GD: {eval_gd['costo_base']:.2f}, Penalizado: {eval_gd['costo_penalizado']:.2f}, Factible: {eval_gd['es_estrictamente_factible']} (Tiempo: {tiempo_comp_gd:.4f}s)")
+                    if eval_gd['violaciones_no_prog_count'] > 0:
+                        print(f"      Aviones no programados GD: {solucion_gd['aviones_no_programados']}")
+                    
+                    escribir_resumen_solucion_csv(
+                        path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_gd, num_pistas_actual, 
+                        "N/A", eval_gd, tiempo_comp_gd, 
+                        solucion_gd['secuencia_aterrizajes'], solucion_gd['aviones_no_programados']
+                    )
+                else: # No debería ocurrir si el resolver_gd siempre devuelve un dict
+                    print(f"      No se obtuvo estructura de solución GD para {num_pistas_actual} pista(s).")
+                    # Podrías escribir una línea de error si lo deseas
+
+                # --- Hill Climbing sobre Greedy Determinista (GD+HC) ---
+                if solucion_gd and solucion_gd['secuencia_aterrizajes']: # Solo si GD produjo algo
+                    print("\n    Ejecutando Hill Climbing sobre GD (GD+HC):")
+                    algoritmo_nombre_gd_hc = "GD_HC"
+                    
+                    tiempo_inicio_gd_hc = time.perf_counter()
+                    solucion_gd_hc = hill_climbing_mejor_mejora(
+                        solucion_gd, # Pasamos la solución completa del GD
+                        datos_del_caso,
+                        num_pistas_actual,
+                        MAX_ITER_SIN_MEJORA_HC,
+                        PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
+                    )
+                    tiempo_fin_gd_hc = time.perf_counter()
+                    tiempo_comp_gd_hc = tiempo_fin_gd_hc - tiempo_inicio_gd_hc
+
+                    # La solución de HC ya viene con 'costo_total' (base), 'costo_penalizado', 'es_factible' (estricta)
+                    # y los contadores de violaciones a través de la evaluación interna que hace.
+                    # No es necesario llamar a evaluar_solucion_penalizada de nuevo externamente si HC ya lo hace.
+                    # El 'eval_actual' devuelto por HC es lo que necesitamos.
+                    print(f"      Costo Base GD+HC: {solucion_gd_hc['costo_total']:.2f}, Penalizado: {solucion_gd_hc['costo_penalizado']:.2f}, Factible: {solucion_gd_hc['es_factible']} (Tiempo: {tiempo_comp_gd_hc:.4f}s)")
+                    
+                    detalles_gd_hc = f"IterHC:{MAX_ITER_SIN_MEJORA_HC}"
+                    escribir_resumen_solucion_csv(
+                        path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_gd_hc, num_pistas_actual,
+                        detalles_gd_hc, 
+                        {'costo_base': solucion_gd_hc['costo_total'], # Adaptar para la función de escritura
+                         'costo_penalizado': solucion_gd_hc['costo_penalizado'],
+                         'es_estrictamente_factible': solucion_gd_hc['es_factible'],
+                         'violaciones_lk_count': solucion_gd_hc.get('violaciones_lk_count',0), # HC debería devolver esto
+                         'violaciones_sep_count': solucion_gd_hc.get('violaciones_sep_count',0),
+                         'violaciones_no_prog_count': solucion_gd_hc.get('violaciones_no_prog_count',0)
+                        },
+                        tiempo_comp_gd_hc,
+                        solucion_gd_hc['secuencia_aterrizajes'], solucion_gd_hc['aviones_no_programados']
+                    )
+                else:
+                    print("      Skipping GD+HC porque GD no generó una secuencia válida.")
+
+
+                # --- Greedy Estocástico (GE) ---
+                print("\n    Ejecutando Greedy Estocástico (GE):")
+                algoritmo_nombre_ge = "GE" 
+                
+                mejores_costos_ge = {'base': float('inf'), 'penalizado': float('inf')}
+                sum_costos_ge_factibles = {'base': 0, 'penalizado': 0}
+                count_ge_factibles = 0
+
+                for i_ge in range(NUM_EJECUCIONES_GE):
+                    semilla_actual_ge = i_ge # O alguna otra estrategia de semillas
+                    
                     tiempo_inicio_ge = time.perf_counter()
-                    sol_ge_actual = resolver_ge(datos_del_caso, num_pistas=num_pista_actual_ge, semilla=semilla_actual, parametro_rcl_alpha=k_rcl_ge) 
+                    sol_ge_actual = resolver_ge(
+                        datos_del_caso, 
+                        num_pistas=num_pistas_actual, 
+                        semilla=semilla_actual_ge, 
+                        parametro_rcl_alpha=K_RCL_GE
+                    ) 
                     tiempo_fin_ge = time.perf_counter()
                     tiempo_comp_ge = tiempo_fin_ge - tiempo_inicio_ge
                     
                     if sol_ge_actual:
-                        costo_para_stats = float('inf') 
-                        if sol_ge_actual.get('es_factible', True):
-                            costo_para_stats = sol_ge_actual.get('costo_total', float('inf'))
+                        eval_ge = evaluar_solucion_penalizada(
+                            sol_ge_actual['secuencia_aterrizajes'], 
+                            sol_ge_actual['aviones_no_programados'], 
+                            datos_del_caso, PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
+                        )
                         
-                        resultados_ge_iteraciones_costos.append(costo_para_stats)
-                        escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_ge, num_pista_actual_ge, semilla_actual, sol_ge_actual, tiempo_comp_ge)
-                    else:
-                        print(f"      Ejecución GE {i+1} (semilla {semilla_actual}): No se obtuvo solución.")
-                        resultados_ge_iteraciones_costos.append(float('inf')) 
-                        escribir_resumen_solucion_csv(path_completo_csv_resumen, nombre_base_del_caso, algoritmo_actual_nombre_ge, num_pista_actual_ge, semilla_actual, None, tiempo_comp_ge)
+                        # Para estadísticas internas de GE
+                        if eval_ge['es_estrictamente_factible']:
+                            count_ge_factibles +=1
+                            sum_costos_ge_factibles['base'] += eval_ge['costo_base']
+                            sum_costos_ge_factibles['penalizado'] += eval_ge['costo_penalizado']
+                            if eval_ge['costo_base'] < mejores_costos_ge['base']: # O podrías basar "mejor" en penalizado
+                                mejores_costos_ge['base'] = eval_ge['costo_base']
+                                mejores_costos_ge['penalizado'] = eval_ge['costo_penalizado']
 
-                if resultados_ge_iteraciones_costos:
-                    costos_validos_ge = [c for c in resultados_ge_iteraciones_costos if c != float('inf')]
-                    if costos_validos_ge:
-                        print(f"      Resultados GE ({num_pista_actual_ge} pista(s)):")
-                        print(f"        Mejor Costo (factible): {min(costos_validos_ge):.2f}")
-                        print(f"        Costo Promedio (factibles): {sum(costos_validos_ge)/len(costos_validos_ge):.2f}")
-                        print(f"        Peor Costo (factible): {max(costos_validos_ge):.2f}")
-                        # Para el informe, querrás todos los costos de las 10 ejecuciones:
-                        # print(f"        Todos los costos: {[f'{c:.2f}' for c in costos_validos_ge]}") # Comentado como lo tenías
-                    else:
-                        print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se obtuvieron soluciones factibles.")
+                        detalles_ge = f"Semilla:{semilla_actual_ge};K_RCL:{K_RCL_GE}"
+                        escribir_resumen_solucion_csv(
+                            path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_ge, num_pistas_actual,
+                            detalles_ge, eval_ge, tiempo_comp_ge,
+                            sol_ge_actual['secuencia_aterrizajes'], sol_ge_actual['aviones_no_programados']
+                        )
+                    else: # No debería ocurrir
+                        print(f"      Ejecución GE (semilla {semilla_actual_ge}): No se obtuvo estructura de solución.")
+                
+                if count_ge_factibles > 0:
+                    print(f"      Resultados GE ({num_pistas_actual} pista(s), {NUM_EJECUCIONES_GE} ejec, {count_ge_factibles} factibles):")
+                    print(f"        Mejor Costo Base (factible): {mejores_costos_ge['base']:.2f} (Penalizado: {mejores_costos_ge['penalizado']:.2f})")
+                    print(f"        Costo Base Promedio (factibles): {sum_costos_ge_factibles['base']/count_ge_factibles:.2f}")
                 else:
-                     print(f"      Resultados GE ({num_pista_actual_ge} pista(s)): No se realizaron ejecuciones.")
-            
-            # # Verificar consistencia general (ya lo hace tu lector, pero no está de más) # Comentado como lo tenías
-            # # if len(aviones) == num_aviones and len(tiempos_separacion) == num_aviones: # Comentado como lo tenías
-            # #     print(f"  Consistencia en número de aviones y datos: OK") # Comentado como lo tenías
-            # # # Verificar primer avión # Comentado como lo tenías
-            # # print(f"  Primer avión (ID {aviones[0]['id']}): {aviones[0]}") # Comentado como lo tenías
-            # # print(f"  Tiempos de separación para el primer avión: {tiempos_separacion[0]}") # Comentado como lo tenías
-            # # if len(tiempos_separacion[0]) == num_aviones: # Comentado como lo tenías
-            # #     print(f"    Longitud de tiempos_separacion[0]: OK ({len(tiempos_separacion[0])})") # Comentado como lo tenías
-            # # else: # Comentado como lo tenías
-            # #     print(f"    ERROR: Longitud de tiempos_separacion[0] incorrecta: {len(tiempos_separacion[0])}, esperaba {num_aviones}") # Comentado como lo tenías
-            # # # Verificar último avión (si hay más de uno) # Comentado como lo tenías
-            # # if num_aviones > 1: # Comentado como lo tenías
-            # #     print(f"  Último avión (ID {aviones[-1]['id']}): {aviones[-1]}") # Comentado como lo tenías
-            # #     print(f"  Tiempos de separación para el último avión: {tiempos_separacion[-1]}") # Comentado como lo tenías
-            # #     if len(tiempos_separacion[-1]) == num_aviones: # Comentado como lo tenías
-            # #         print(f"    Longitud de tiempos_separacion[-1]: OK ({len(tiempos_separacion[-1])})") # Comentado como lo tenías
-            # #     else: # Comentado como lo tenías
-            # #         print(f"    ERROR: Longitud de tiempos_separacion[-1] incorrecta: {len(tiempos_separacion[-1])}, esperaba {num_aviones}") # Comentado como lo tenías
-            # # # Verificar un avión intermedio para casos grandes # Comentado como lo tenías
-            # # if num_aviones > 20 and num_aviones >= 50 : # Ejemplo para case4 # Comentado como lo tenías
-            # #     idx_intermedio = 49  # Comentado como lo tenías
-            # #     print(f"  Avión intermedio (ID {aviones[idx_intermedio]['id']}): {aviones[idx_intermedio]}") # Comentado como lo tenías
-            # #     print(f"  Tiempos de separación para el avión intermedio: {tiempos_separacion[idx_intermedio]}") # Comentado como lo tenías
-            # #     if len(tiempos_separacion[idx_intermedio]) == num_aviones: # Comentado como lo tenías
-            # #         print(f"    Longitud de tiempos_separacion[{idx_intermedio}]: OK ({len(tiempos_separacion[idx_intermedio])})") # Comentado como lo tenías
-            # #     else: # Comentado como lo tenías
-            # #         print(f"    ERROR: Longitud de tiempos_separacion[{idx_intermedio}] incorrecta: {len(tiempos_separacion[idx_intermedio])}, esperaba {num_aviones}") # Comentado como lo tenías
-            # # else: # Comentado como lo tenías
-            # # print(f"  ERROR: Inconsistencia detectada después de la carga.") # Comentado como lo tenías
+                    print(f"      Resultados GE ({num_pistas_actual} pista(s)): No se obtuvieron soluciones estrictamente factibles en {NUM_EJECUCIONES_GE} ejecuciones.")
 
-        else:
+                # --- GRASP + Hill Climbing (Estocástico) ---
+                print("\n    Ejecutando GRASP + Hill Climbing (GRASP_HC_Estoc):")
+                algoritmo_nombre_grasp = "GRASP_HC_Estoc"
+
+                for iter_grasp_cfg in ITERACIONES_GRASP_CONFIGS:
+                    print(f"      Config GRASP: {iter_grasp_cfg} iteraciones (restarts)")
+                    tiempo_inicio_grasp = time.perf_counter()
+                    solucion_grasp = grasp_resolver(
+                        datos_del_caso,
+                        num_pistas_actual,
+                        iter_grasp_cfg, # Número de iteraciones GRASP (restarts)
+                        SEMILLA_INICIAL_GRASP,
+                        K_RCL_GE, # Parámetro RCL para la construcción GE interna
+                        MAX_ITER_SIN_MEJORA_HC,
+                        PENALIDAD_LK, PENALIDAD_SEP, PENALIDAD_NO_PROG
+                    )
+                    tiempo_fin_grasp = time.perf_counter()
+                    tiempo_comp_grasp = tiempo_fin_grasp - tiempo_inicio_grasp
+
+                    # solucion_grasp ya contiene 'costo_total' (base), 'costo_penalizado', 'es_factible' (estricta), y violaciones
+                    print(f"        Costo Base GRASP: {solucion_grasp['costo_total']:.2f}, Penalizado: {solucion_grasp['costo_penalizado']:.2f}, Factible: {solucion_grasp['es_factible']} (Tiempo: {tiempo_comp_grasp:.4f}s)")
+
+                    detalles_grasp = f"IterGRASP:{iter_grasp_cfg};SemIni:{SEMILLA_INICIAL_GRASP};K_RCL:{K_RCL_GE};IterHC:{MAX_ITER_SIN_MEJORA_HC}"
+                    escribir_resumen_solucion_csv(
+                        path_completo_csv_resumen, nombre_base_del_caso, algoritmo_nombre_grasp, num_pistas_actual,
+                        detalles_grasp, 
+                        {'costo_base': solucion_grasp['costo_total'], # Adaptar para la función de escritura
+                         'costo_penalizado': solucion_grasp['costo_penalizado'],
+                         'es_estrictamente_factible': solucion_grasp['es_factible'],
+                         'violaciones_lk_count': solucion_grasp.get('violaciones_lk_count',0),
+                         'violaciones_sep_count': solucion_grasp.get('violaciones_sep_count',0),
+                         'violaciones_no_prog_count': solucion_grasp.get('violaciones_no_prog_count',0)
+                        },
+                        tiempo_comp_grasp,
+                        solucion_grasp['secuencia_aterrizajes'], solucion_grasp['aviones_no_programados']
+                    )
+            
+            # --- Comentarios originales de verificación de datos del caso ---
+            # if len(datos_del_caso['aviones']) == num_aviones_total_caso and len(datos_del_caso['tiempos_separacion']) == num_aviones_total_caso:
+            #     print(f"  Consistencia en número de aviones y datos: OK")
+            # else:
+            #     print(f"  ERROR: Inconsistencia detectada después de la carga.")
+            # print(f"  Primer avión (ID {datos_del_caso['aviones'][0]['id']}): {datos_del_caso['aviones'][0]}")
+            # print(f"  Tiempos de separación para el primer avión: {datos_del_caso['tiempos_separacion'][0]}")
+            # if len(datos_del_caso['tiempos_separacion'][0]) == num_aviones_total_caso:
+            #     print(f"    Longitud de tiempos_separacion[0]: OK ({len(datos_del_caso['tiempos_separacion'][0])})")
+            # else:
+            #     print(f"    ERROR: Longitud de tiempos_separacion[0] incorrecta: {len(datos_del_caso['tiempos_separacion'][0])}, esperaba {num_aviones_total_caso}")
+            # if num_aviones_total_caso > 1:
+            #     print(f"  Último avión (ID {datos_del_caso['aviones'][-1]['id']}): {datos_del_caso['aviones'][-1]}")
+            #     print(f"  Tiempos de separación para el último avión: {datos_del_caso['tiempos_separacion'][-1]}")
+            #     if len(datos_del_caso['tiempos_separacion'][-1]) == num_aviones_total_caso:
+            #         print(f"    Longitud de tiempos_separacion[-1]: OK ({len(datos_del_caso['tiempos_separacion'][-1])})")
+            #     else:
+            #         print(f"    ERROR: Longitud de tiempos_separacion[-1] incorrecta: {len(datos_del_caso['tiempos_separacion'][-1])}, esperaba {num_aviones_total_caso}")
+            # if num_aviones_total_caso > 20 and num_aviones_total_caso >= 50 : # Ejemplo para case4
+            #     idx_intermedio = 49 
+            #     print(f"  Avión intermedio (ID {datos_del_caso['aviones'][idx_intermedio]['id']}): {datos_del_caso['aviones'][idx_intermedio]}")
+            #     print(f"  Tiempos de separación para el avión intermedio: {datos_del_caso['tiempos_separacion'][idx_intermedio]}")
+            #     if len(datos_del_caso['tiempos_separacion'][idx_intermedio]) == num_aviones_total_caso:
+            #         print(f"    Longitud de tiempos_separacion[{idx_intermedio}]: OK ({len(datos_del_caso['tiempos_separacion'][idx_intermedio])})")
+            #     else:
+            #         print(f"    ERROR: Longitud de tiempos_separacion[{idx_intermedio}] incorrecta: {len(datos_del_caso['tiempos_separacion'][idx_intermedio])}, esperaba {num_aviones_total_caso}")
+        else: # if datos_del_caso
             print(f"No se pudieron cargar los datos para {ruta_archivo_caso}.")
         print("----------------------------------\n")
 
